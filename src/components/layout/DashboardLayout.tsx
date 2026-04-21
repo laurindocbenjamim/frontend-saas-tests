@@ -26,11 +26,19 @@ const Tooltip: React.FC<{ text: string; children: React.ReactNode; show: boolean
   return (
     <div className="relative flex items-center group/tooltip">
       {children}
-      {show && (
-        <div className="absolute left-full ml-4 px-3 py-1.5 bg-immersive-card border border-white/10 rounded-lg shadow-2xl text-[10px] font-black uppercase tracking-widest text-blue-400 whitespace-nowrap pointer-events-none z-[100] scale-95 opacity-0 group-hover/tooltip:opacity-100 group-hover/tooltip:scale-100 transition-all">
-          {text}
-        </div>
-      )}
+      <AnimatePresence>
+        {show && (
+          <motion.div 
+            initial={{ opacity: 0, x: -10, scale: 0.95 }}
+            whileInView={{ opacity: 1, x: 0, scale: 1 }}
+            exit={{ opacity: 0, x: -10, scale: 0.95 }}
+            className="absolute left-full ml-4 px-3 py-1.5 bg-immersive-card border border-white/10 rounded-lg shadow-2xl text-[10px] font-black uppercase tracking-widest text-blue-400 whitespace-nowrap pointer-events-none z-[100] group-hover/tooltip:opacity-100 transition-opacity flex items-center gap-2"
+          >
+            <div className="absolute -left-1 top-1/2 -translate-y-1/2 w-2 h-2 bg-immersive-card border-l border-b border-white/10 rotate-45"></div>
+            {text}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
@@ -123,12 +131,14 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
         </nav>
 
         <div className="p-4 border-t border-white/5">
-          <button
-            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-            className="w-full flex items-center justify-center p-2 rounded-lg hover:bg-white/5 text-gray-500 transition-colors"
-          >
-            {isSidebarCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
-          </button>
+          <Tooltip text={isSidebarCollapsed ? "Expand Terminal" : "Collapse Terminal"} show={true}>
+            <button
+              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+              className="w-full flex items-center justify-center p-2 rounded-lg hover:bg-white/5 text-gray-500 transition-colors"
+            >
+              {isSidebarCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+            </button>
+          </Tooltip>
         </div>
       </motion.aside>
 

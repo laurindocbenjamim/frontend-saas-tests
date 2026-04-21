@@ -1,28 +1,66 @@
 import React, { useEffect, useState } from 'react';
-import { motion } from 'motion/react';
-import { Users as UsersIcon, Search, MoreVertical, Plus, Mail, Shield, User as UserIcon } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { 
+  Users as UsersIcon, 
+  Search, 
+  MoreVertical, 
+  Plus, 
+  Mail, 
+  Shield, 
+  User as UserIcon, 
+  X, 
+  ShieldCheck, 
+  Lock,
+  Loader2
+} from 'lucide-react';
 import { api } from '../services/api';
 import { User } from '../types';
-import { Button } from '../components/common/UI';
+import { Button, Input } from '../components/common/UI';
 
 export const UsersPage: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isProvisioning, setIsProvisioning] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const [newUserData, setNewUserData] = useState({
+    name: '',
+    email: '',
+    password: '',
+    role: 'Editor' as User['role']
+  });
+
+  const fetchUsers = async () => {
+    setIsLoading(true);
+    try {
+      const data = await api.users.getAll();
+      setUsers(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        const data = await api.users.getAll();
-        setUsers(data);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
     fetchUsers();
   }, []);
+
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      await api.users.create(newUserData);
+      setNewUserData({ name: '', email: '', password: '', role: 'Editor' });
+      setIsProvisioning(false);
+      fetchUsers();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const filteredUsers = users.filter(u => 
     u.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -30,16 +68,119 @@ export const UsersPage: React.FC = () => {
   );
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 relative">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black text-white tracking-tight">Access Control</h1>
-          <p className="text-gray-500 mt-1">Manage system administrators and identity permissions.</p>
+          <h1 className="text-3xl font-black text-white tracking-tight leading-none uppercase italic">Identity Nodes</h1>
+          <p className="text-[10px] uppercase font-black tracking-widest text-gray-600 mt-2">Manage system administrators and identity permissions.</p>
         </div>
-        <Button className="h-12 px-6 rounded-xl">
-          <Plus size={20} className="mr-2" /> Provision New User
+        <Button onClick={() => setIsProvisioning(true)} className="h-12 px-8 rounded-2xl bg-blue-600 text-white font-black uppercase text-[10px] tracking-[0.2em] shadow-xl hover:bg-blue-500 active:scale-95 transition-all">
+          <Plus size={16} className="mr-3" /> Provision New User
         </Button>
       </div>
+
+      <AnimatePresence>
+        {isProvisioning && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsProvisioning(false)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 10 }}
+              className="relative w-full max-w-lg bg-immersive-surface rounded-[40px] border border-white/5 shadow-2xl p-10 overflow-hidden"
+            >
+              {/* MODAL DECOR */}
+              <div className="absolute top-0 right-0 p-10 opacity-5 pointer-events-none">
+                 <Shield size={120} />
+              </div>
+
+              <div className="flex justify-between items-start mb-10">
+                <div className="flex items-center gap-5">
+                   <div className="w-12 h-12 bg-blue-600/20 rounded-2xl flex items-center justify-center text-blue-400 border border-blue-500/20">
+                      <UserIcon size={24} />
+                   </div>
+                   <div>
+                      <h2 className="text-2xl font-black text-white uppercase italic leading-none">New Identity</h2>
+                      <p className="text-[9px] font-black tracking-[0.3em] text-gray-500 uppercase mt-1">Provisioning Protocol v1.4</p>
+                   </div>
+                </div>
+                <button 
+                  onClick={() => setIsProvisioning(false)}
+                  className="p-3 text-gray-600 hover:text-white transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateUser} className="space-y-6">
+                <div className="grid grid-cols-1 gap-6">
+                  <Input 
+                    label="Display Name" 
+                    placeholder="Enter full identity..." 
+                    required
+                    value={newUserData.name}
+                    onChange={e => setNewUserData({...newUserData, name: e.target.value})}
+                  />
+                  <Input 
+                    label="Network Email" 
+                    type="email" 
+                    placeholder="name@system.matrix" 
+                    required
+                    value={newUserData.email}
+                    onChange={e => setNewUserData({...newUserData, email: e.target.value})}
+                  />
+                  <div className="grid grid-cols-2 gap-6">
+                    <Input 
+                      label="Security Key" 
+                      type="password" 
+                      placeholder="••••••••" 
+                      required
+                      value={newUserData.password}
+                      onChange={e => setNewUserData({...newUserData, password: e.target.value})}
+                    />
+                    <div className="flex flex-col gap-2">
+                       <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-1">Access Level</label>
+                       <select 
+                         value={newUserData.role}
+                         onChange={e => setNewUserData({...newUserData, role: e.target.value as User['role']})}
+                         className="w-full h-12 bg-white/5 border border-white/10 rounded-xl px-4 text-xs text-white uppercase font-black tracking-widest outline-none focus:border-blue-500/50 transition-all cursor-pointer"
+                       >
+                          <option value="Admin">Admin (Full)</option>
+                          <option value="Editor">Editor (Normal)</option>
+                          <option value="Viewer">Viewer (Read Only)</option>
+                       </select>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-4 mt-10">
+                  <Button 
+                    type="button" 
+                    variant="ghost" 
+                    className="flex-1 h-14 rounded-2xl font-black uppercase text-[10px] tracking-widest text-gray-500"
+                    onClick={() => setIsProvisioning(false)}
+                  >
+                    Abort
+                  </Button>
+                  <Button 
+                    type="submit" 
+                    isLoading={isSubmitting}
+                    className="flex-[2] h-14 rounded-2xl bg-blue-600 text-white font-black uppercase text-[10px] tracking-widest shadow-2xl active:scale-95 transition-all"
+                  >
+                    Inaugurate Identity
+                  </Button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       <div className="bg-immersive-card rounded-2xl border border-white/5 shadow-sm overflow-hidden">
         <div className="p-6 border-b border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-4">

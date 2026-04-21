@@ -11,7 +11,10 @@ import {
   X, 
   ShieldCheck, 
   Lock,
-  Loader2
+  Loader2,
+  Edit2,
+  Trash2,
+  AlertCircle
 } from 'lucide-react';
 import { api } from '../services/api';
 import { User } from '../types';
@@ -23,6 +26,9 @@ export const UsersPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isProvisioning, setIsProvisioning] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  
+  const [editingUser, setEditingUser] = useState<User | null>(null);
   
   const [newUserData, setNewUserData] = useState({
     name: '',
@@ -47,18 +53,51 @@ export const UsersPage: React.FC = () => {
     fetchUsers();
   }, []);
 
-  const handleCreateUser = async (e: React.FormEvent) => {
+  const resetForm = () => {
+    setNewUserData({ name: '', email: '', password: '', role: 'Editor' });
+    setEditingUser(null);
+    setErrorMessage('');
+    setIsProvisioning(false);
+  };
+
+  const handleOpenEdit = (user: User) => {
+    setEditingUser(user);
+    setNewUserData({
+      name: user.name,
+      email: user.email,
+      password: user.password || '',
+      role: user.role
+    });
+    setIsProvisioning(true);
+  };
+
+  const handleCreateOrUpdateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setErrorMessage('');
     try {
-      await api.users.create(newUserData);
-      setNewUserData({ name: '', email: '', password: '', role: 'Editor' });
-      setIsProvisioning(false);
+      if (editingUser) {
+        await api.users.update(editingUser.id, newUserData);
+      } else {
+        await api.users.create(newUserData);
+      }
+      resetForm();
+      fetchUsers();
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Operation failed');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteUser = async (id: string) => {
+    if (!confirm('Are you sure you want to decommission this identity?')) return;
+    try {
+      await api.users.delete(id);
       fetchUsers();
     } catch (err) {
       console.error(err);
-    } finally {
-      setIsSubmitting(false);
+      alert('Delete failed');
     }
   };
 
@@ -103,22 +142,33 @@ export const UsersPage: React.FC = () => {
               <div className="flex justify-between items-start mb-10">
                 <div className="flex items-center gap-5">
                    <div className="w-12 h-12 bg-blue-600/20 rounded-2xl flex items-center justify-center text-blue-400 border border-blue-500/20">
-                      <UserIcon size={24} />
+                      {editingUser ? <Edit2 size={24} /> : <UserIcon size={24} />}
                    </div>
                    <div>
-                      <h2 className="text-2xl font-black text-white uppercase italic leading-none">New Identity</h2>
-                      <p className="text-[9px] font-black tracking-[0.3em] text-gray-500 uppercase mt-1">Provisioning Protocol v1.4</p>
+                      <h2 className="text-2xl font-black text-white uppercase italic leading-none">
+                        {editingUser ? 'Sync Identity' : 'New Identity'}
+                      </h2>
+                      <p className="text-[9px] font-black tracking-[0.3em] text-gray-500 uppercase mt-1">
+                        {editingUser ? 'Updating existing node' : 'Provisioning Protocol v1.4'}
+                      </p>
                    </div>
                 </div>
                 <button 
-                  onClick={() => setIsProvisioning(false)}
+                  onClick={resetForm}
                   className="p-3 text-gray-600 hover:text-white transition-colors"
                 >
                   <X size={20} />
                 </button>
               </div>
 
-              <form onSubmit={handleCreateUser} className="space-y-6">
+              {errorMessage && (
+                <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3 text-red-400">
+                  <AlertCircle size={16} />
+                  <p className="text-[10px] font-black uppercase tracking-widest">{errorMessage}</p>
+                </div>
+              )}
+
+              <form onSubmit={handleCreateOrUpdateUser} className="space-y-6">
                 <div className="grid grid-cols-1 gap-6">
                   <Input 
                     label="Display Name" 
@@ -173,7 +223,7 @@ export const UsersPage: React.FC = () => {
                     isLoading={isSubmitting}
                     className="flex-[2] h-14 rounded-2xl bg-blue-600 text-white font-black uppercase text-[10px] tracking-widest shadow-2xl active:scale-95 transition-all"
                   >
-                    Inaugurate Identity
+                    {editingUser ? 'Sync Changes' : 'Inaugurate Identity'}
                   </Button>
                 </div>
               </form>
@@ -255,9 +305,22 @@ export const UsersPage: React.FC = () => {
                       <p className="text-[10px] font-mono text-gray-500">2026-04-21</p>
                     </td>
                     <td className="px-8 py-6 text-right">
-                      <button className="p-2 rounded-lg hover:bg-white/10 transition-all">
-                        <MoreVertical size={16} className="text-gray-600" />
-                      </button>
+                      <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button 
+                          onClick={() => handleOpenEdit(user)}
+                          className="p-2 rounded-lg hover:bg-white/10 text-blue-400 transition-all"
+                          title="Modify Node"
+                        >
+                          <Edit2 size={16} />
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteUser(user.id)}
+                          className="p-2 rounded-lg hover:bg-red-500/10 text-red-400 transition-all"
+                          title="Decommission Node"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))

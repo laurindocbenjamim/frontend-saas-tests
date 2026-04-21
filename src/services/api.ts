@@ -22,7 +22,27 @@ export const api = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Failed to create user');
+      }
       return res.json();
+    },
+    update: async (id: string, data: Partial<User>) => {
+      const res = await fetch(`${API_BASE}/users/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Failed to update user');
+      }
+      return res.json();
+    },
+    delete: async (id: string) => {
+      const res = await fetch(`${API_BASE}/users/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete user');
     }
   },
   logs: {

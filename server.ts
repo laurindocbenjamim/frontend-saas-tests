@@ -36,10 +36,50 @@ async function startServer() {
 
   app.post("/api/users", (req, res) => {
     const db = readDB();
+    const { email } = req.body;
+    
+    // Check if email already exists
+    if (db.users.some((u: any) => u.email.toLowerCase() === email.toLowerCase())) {
+      return res.status(400).json({ error: "Email already in use" });
+    }
+
     const newUser = { ...req.body, id: Date.now().toString() };
     db.users.push(newUser);
     writeDB(db);
     res.status(201).json(newUser);
+  });
+
+  app.patch("/api/users/:id", (req, res) => {
+    const { id } = req.params;
+    const db = readDB();
+    const index = db.users.findIndex((u: any) => u.id === id);
+    
+    if (index === -1) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const { email } = req.body;
+    if (email && db.users.some((u: any) => u.email.toLowerCase() === email.toLowerCase() && u.id !== id)) {
+      return res.status(400).json({ error: "Email already in use" });
+    }
+
+    db.users[index] = { ...db.users[index], ...req.body };
+    writeDB(db);
+    res.json(db.users[index]);
+  });
+
+  app.delete("/api/users/:id", (req, res) => {
+    const { id } = req.params;
+    const db = readDB();
+    const initialLength = db.users.length;
+    db.users = db.users.filter((u: any) => u.id !== id);
+    
+    if (db.users.length === initialLength) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    writeDB(db);
+    res.status(204).send();
   });
 
   app.get("/api/logs", (req, res) => {

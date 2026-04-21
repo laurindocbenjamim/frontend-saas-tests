@@ -50,15 +50,100 @@ export const Button: React.FC<ButtonProps> = ({
   );
 };
 
-export const Input: React.FC<React.InputHTMLAttributes<HTMLInputElement> & { label?: string; error?: string }> = ({ label, error, className = '', ...props }) => {
+export const Input: React.FC<React.InputHTMLAttributes<HTMLInputElement> & { label?: string; error?: string; success?: boolean }> = ({ label, error, success, className = '', ...props }) => {
   return (
     <div className="flex flex-col gap-2 w-full">
-      {label && <label className="text-xs font-medium text-gray-500 uppercase tracking-tighter ml-1">{label}</label>}
-      <input
-        className={`px-4 py-2.5 bg-immersive-card border border-white/10 rounded-xl text-gray-200 placeholder-gray-600 focus:outline-none focus:border-blue-500/50 transition-all text-sm ${error ? 'border-red-500/50' : ''} ${className}`}
-        {...props}
-      />
-      {error && <p className="text-[10px] text-red-400 mt-1 ml-1 uppercase font-bold">{error}</p>}
+      {label && <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-1">{label}</label>}
+      <div className="relative group/input">
+        <input
+          className={`px-4 py-2.5 bg-immersive-card border rounded-xl text-gray-200 placeholder-gray-700 focus:outline-none transition-all text-sm w-full font-medium ${
+            error 
+              ? 'border-red-500/50 bg-red-500/5 focus:border-red-500 shadow-[0_0_10px_rgba(239,68,68,0.1)]' 
+              : success 
+                ? 'border-green-500/50 bg-green-500/5 focus:border-green-500' 
+                : 'border-white/10 focus:border-blue-500/50 focus:bg-blue-500/5'
+          } ${className}`}
+          {...props}
+        />
+        {error && (
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 text-red-500">
+             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          </div>
+        )}
+        {success && !error && (
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 text-green-500">
+             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+        )}
+      </div>
+      {error && <p className="text-[9px] text-red-400 mt-1 ml-1 uppercase font-black italic">{error}</p>}
+    </div>
+  );
+};
+
+export const CurrencyInput: React.FC<Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange' | 'value'> & { 
+  label?: string; 
+  error?: string; 
+  value: string | number; 
+  onChange: (value: string) => void 
+}> = ({ label, error, value, onChange, className = '', ...props }) => {
+  const [displayValue, setDisplayValue] = React.useState('');
+
+  React.useEffect(() => {
+    if (value === '' || value === undefined || value === null) {
+      setDisplayValue('');
+      return;
+    }
+    const num = typeof value === 'string' ? parseFloat(value) : value;
+    if (isNaN(num)) return;
+    
+    setDisplayValue(new Intl.NumberFormat('pt-PT', {
+      style: 'currency',
+      currency: 'EUR',
+      minimumFractionDigits: 2
+    }).format(num));
+  }, [value]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value.replace(/[^0-9,.-]/g, '').replace(',', '.');
+    onChange(rawValue);
+  };
+
+  const handleFocus = () => {
+    setDisplayValue(value.toString().replace('.', ','));
+  };
+
+  const handleBlur = () => {
+    if (value === '') {
+      setDisplayValue('');
+      return;
+    }
+    const num = parseFloat(value.toString().replace(',', '.'));
+    if (isNaN(num)) return;
+    setDisplayValue(new Intl.NumberFormat('pt-PT', {
+      style: 'currency',
+      currency: 'EUR',
+      minimumFractionDigits: 2
+    }).format(num));
+  };
+
+  return (
+    <div className="flex flex-col gap-2 w-full">
+      {label && <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-1">{label}</label>}
+      <div className="relative">
+        <input
+          className={`px-4 py-2.5 bg-immersive-card border border-white/10 rounded-xl text-gray-200 placeholder-gray-700 focus:outline-none focus:border-blue-500/50 transition-all text-sm w-full font-mono text-right ${error ? 'border-red-500/50' : ''} ${className}`}
+          value={displayValue}
+          onChange={handleChange}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
+          {...props}
+        />
+        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600 pointer-events-none">
+           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 15h2a2.5 2.5 0 1 0 0-5h-4a2.5 2.5 0 1 0 0-5h2"/><path d="M12 3v2"/><path d="M12 19v2"/></svg>
+        </div>
+      </div>
+      {error && <p className="text-[9px] text-red-400 mt-1 ml-1 uppercase font-black italic">{error}</p>}
     </div>
   );
 };

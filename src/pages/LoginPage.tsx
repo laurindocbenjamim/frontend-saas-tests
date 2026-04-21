@@ -59,7 +59,7 @@ export const LoginPage: React.FC = () => {
           <Input 
             label="Operator Identifier (Email)" 
             type="email" 
-            placeholder="operator@itax.sys" 
+            placeholder="operator@opus.sys" 
             value={formData.email} 
             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
             required

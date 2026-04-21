@@ -60,6 +60,13 @@ export const UsersPage: React.FC = () => {
     setIsProvisioning(false);
   };
 
+  const handleOpenProvisioning = () => {
+    setNewUserData({ name: '', email: '', password: '', role: 'Editor' });
+    setEditingUser(null);
+    setErrorMessage('');
+    setIsProvisioning(true);
+  };
+
   const handleOpenEdit = (user: User) => {
     setEditingUser(user);
     setNewUserData({
@@ -73,6 +80,18 @@ export const UsersPage: React.FC = () => {
 
   const handleCreateOrUpdateUser = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Check for unique email
+    const emailExists = users.some(u => 
+      u.email.toLowerCase() === newUserData.email.toLowerCase() && 
+      (!editingUser || u.id !== editingUser.id)
+    );
+
+    if (emailExists) {
+      setErrorMessage('Network Conflict: This email identity already exists in the system.');
+      return;
+    }
+
     setIsSubmitting(true);
     setErrorMessage('');
     try {
@@ -113,7 +132,7 @@ export const UsersPage: React.FC = () => {
           <h1 className="text-3xl font-black text-white tracking-tight leading-none uppercase italic">Identity Nodes</h1>
           <p className="text-[10px] uppercase font-black tracking-widest text-gray-600 mt-2">Manage system administrators and identity permissions.</p>
         </div>
-        <Button onClick={() => setIsProvisioning(true)} className="h-12 px-8 rounded-2xl bg-blue-600 text-white font-black uppercase text-[10px] tracking-[0.2em] shadow-xl hover:bg-blue-500 active:scale-95 transition-all">
+        <Button onClick={handleOpenProvisioning} className="h-12 px-8 rounded-2xl bg-blue-600 text-white font-black uppercase text-[10px] tracking-[0.2em] shadow-xl hover:bg-blue-500 active:scale-95 transition-all">
           <Plus size={16} className="mr-3" /> Provision New User
         </Button>
       </div>

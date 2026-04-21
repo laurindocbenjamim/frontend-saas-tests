@@ -22,17 +22,23 @@ import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { motion, AnimatePresence } from 'motion/react';
 
-const Tooltip: React.FC<{ text: string; children: React.ReactNode; show: boolean }> = ({ text, children, show }) => {
+const Tooltip: React.FC<{ text: string; children: React.ReactNode; enabled: boolean }> = ({ text, children, enabled }) => {
+  const [isHovered, setIsHovered] = useState(false);
+
   return (
-    <div className="relative flex items-center group/tooltip">
+    <div 
+      className="relative flex items-center"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
       {children}
       <AnimatePresence>
-        {show && (
+        {enabled && isHovered && (
           <motion.div 
             initial={{ opacity: 0, x: -10, scale: 0.95 }}
-            whileInView={{ opacity: 1, x: 0, scale: 1 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
             exit={{ opacity: 0, x: -10, scale: 0.95 }}
-            className="absolute left-full ml-4 px-3 py-1.5 bg-immersive-card border border-white/10 rounded-lg shadow-2xl text-[10px] font-black uppercase tracking-widest text-blue-400 whitespace-nowrap pointer-events-none z-[100] group-hover/tooltip:opacity-100 transition-opacity flex items-center gap-2"
+            className="absolute left-full ml-4 px-3 py-1.5 bg-immersive-card border border-white/10 rounded-lg shadow-2xl text-[10px] font-black uppercase tracking-widest text-blue-400 whitespace-nowrap pointer-events-none z-[100] flex items-center gap-2"
           >
             <div className="absolute -left-1 top-1/2 -translate-y-1/2 w-2 h-2 bg-immersive-card border-l border-b border-white/10 rotate-45"></div>
             {text}
@@ -82,9 +88,9 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
                 className="flex items-center gap-3 font-bold"
               >
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
-                  <span className="text-white">IT</span>
+                  <span className="text-white">O</span>
                 </div>
-                <span className="text-xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">I-Tax</span>
+                <span className="text-xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">Opus</span>
               </motion.div>
             )}
             {isSidebarCollapsed && (
@@ -95,7 +101,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
                 className="w-full flex justify-center"
                >
                  <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
-                   <span className="text-white text-xs">IT</span>
+                   <span className="text-white text-xs">O</span>
                  </div>
                </motion.div>
             )}
@@ -104,7 +110,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
 
         <nav className="flex-1 mt-6 px-3 space-y-4 overflow-y-auto overflow-x-hidden custom-scrollbar">
           {navItems.map((item) => (
-            <Tooltip key={item.path} text={item.name} show={isSidebarCollapsed}>
+            <Tooltip key={item.path} text={item.name} enabled={isSidebarCollapsed}>
               <NavLink
                 to={item.path}
                 className={({ isActive }) =>
@@ -131,7 +137,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
         </nav>
 
         <div className="p-4 border-t border-white/5">
-          <Tooltip text={isSidebarCollapsed ? "Expand Terminal" : "Collapse Terminal"} show={true}>
+          <Tooltip text={isSidebarCollapsed ? "Expand Terminal" : "Collapse Terminal"} enabled={true}>
             <button
               onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
               className="w-full flex items-center justify-center p-2 rounded-lg hover:bg-white/5 text-gray-500 transition-colors"

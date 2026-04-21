@@ -7,18 +7,14 @@ import {
   AlertCircle, 
   FileText, 
   Users, 
-  Euro, 
   ShieldCheck,
   ChevronRight,
   ChevronLeft,
-  Info,
-  Building,
-  CreditCard,
   MapPin,
-  Globe
+  Building
 } from 'lucide-react';
 import { Button, Input, CurrencyInput } from '../components/common/UI';
-import { validateNIF, validateIBAN, formatCurrency } from '../lib/validations';
+import { validateNIF, validateIBAN } from '../lib/validations';
 import { api } from '../services/api';
 
 type TabType = 'ROSTO' | 'RESIDENCIA' | 'ANEXO_A' | 'ANEXO_B' | 'ANEXO_SS';
@@ -169,8 +165,8 @@ export const IRSForm: React.FC = () => {
             <FileText size={24} />
           </div>
           <div>
-            <h1 className="text-2xl font-black text-white tracking-tight leading-none uppercase italic">I-Tax Modelo 3</h1>
-            <p className="text-[9px] font-black tracking-[0.3em] text-gray-500 uppercase mt-1">Autoridade Tributária • Engine v4.5.1</p>
+            <h1 className="text-2xl font-black text-white tracking-tight leading-none uppercase italic">Opus Modelo 3</h1>
+            <p className="text-[9px] font-black tracking-[0.3em] text-gray-500 uppercase mt-1">Autoridade Tributária • Engine v5.0.0</p>
           </div>
         </div>
         
@@ -230,7 +226,7 @@ export const IRSForm: React.FC = () => {
                           id="nome_sp_a"
                           name="nome_sp_a"
                           label="NOME SUJEITO PASSIVO A" 
-                          placeholder="EX: LAURINDO CHITECULO" 
+                          placeholder="EX: ANA SILVA" 
                           value={formData.nome_sp_a}
                           onChange={e => setFormData({...formData, nome_sp_a: e.target.value})}
                         />
@@ -245,9 +241,9 @@ export const IRSForm: React.FC = () => {
                           onChange={e => setFormData({...formData, nif_sp_a: e.target.value.slice(0, 9)})}
                         />
                       </div>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-black/20 p-6 rounded-2xl border border-white/5">
-                         <Input label="Grau Incapacidade (%)" id="incapacidade_grau_a" name="incapacidade_grau_a" type="number" value={formData.incapacity_grau_a} />
-                         <Input label="Incapacidade (FA)" id="incapacidade_fa_a" name="incapacidade_fa_a" placeholder="N/A" />
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 bg-black/20 p-6 rounded-2xl border border-white/5">
+                         <Input label="Grau Incapacidade (%)" id="incapacidade_grau_a" name="incapacidade_grau_a" type="number" value={formData.incapacidade_grau_a} onChange={e => setFormData({...formData, incapacidade_grau_a: e.target.value})} />
+                         <Input label="Incapacidade (FA)" id="incapacidade_fa_a" name="incapacidade_fa_a" placeholder="N/A" value={formData.incapacidade_fa_a} onChange={e => setFormData({...formData, incapacidade_fa_a: e.target.value})} />
                          <div className="space-y-2">
                             <label className="text-[9px] font-black uppercase tracking-widest text-gray-500">Revisão Incapacidade?</label>
                             <div className="flex gap-4">
@@ -256,7 +252,16 @@ export const IRSForm: React.FC = () => {
                                ))}
                             </div>
                          </div>
+                         {formData.revisao_incapacidade_a === 'YES' && (
+                           <Input label="Ano Revisão" id="ano_revisao_a" name="ano_revisao_a" placeholder="yyyy" value={formData.ano_revisao_a} onChange={e => setFormData({...formData, ano_revisao_a: e.target.value})} />
+                         )}
                       </div>
+                      {formData.revisao_incapacidade_a === 'YES' && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-black/20 p-6 rounded-2xl border border-white/5">
+                           <Input label="Anterior Grau (%)" id="anterior_grau_a" name="anterior_grau_a" placeholder="0" value={formData.anterior_grau_a} onChange={e => setFormData({...formData, anterior_grau_a: e.target.value})} />
+                           <Input label="Anterior Ano" id="anterior_ano_a" name="anterior_ano_a" placeholder="yyyy" value={formData.anterior_ano_a} onChange={e => setFormData({...formData, anterior_ano_a: e.target.value})} />
+                        </div>
+                      )}
                     </div>
 
                     {/* Quadro 4 & 5 */}
@@ -302,6 +307,11 @@ export const IRSForm: React.FC = () => {
                                    error={errors.nif_sp_b}
                                    success={validateNIF(formData.nif_sp_b)}
                                  />
+                                 <Input 
+                                   label="NIF CÔNJUGE FALECIDO (SE APLICÁVEL)" 
+                                   value={formData.nif_conjuge_falecido} 
+                                   onChange={e => setFormData({...formData, nif_conjuge_falecido: e.target.value.slice(0,9)})} 
+                                 />
                                </motion.div>
                              )}
                           </div>
@@ -310,71 +320,123 @@ export const IRSForm: React.FC = () => {
 
                     {/* Quadro 6 */}
                     <div className="space-y-6">
-                       <div className="flex justify-between items-center">
-                          <div className="flex items-center gap-3">
-                             <span className="bg-blue-600/20 text-blue-400 px-3 py-1 rounded text-[9px] font-black border border-blue-500/20">QUADRO 6</span>
-                             <h2 className="text-white text-xs font-black uppercase tracking-[0.2em]">Agregado Familiar</h2>
+                        <div className="flex justify-between items-center">
+                           <div className="flex items-center gap-3">
+                              <span className="bg-blue-600/20 text-blue-400 px-3 py-1 rounded text-[9px] font-black border border-blue-500/20">QUADRO 6</span>
+                              <h2 className="text-white text-xs font-black uppercase tracking-[0.2em]">Agregado Familiar</h2>
+                           </div>
+                           <div className="flex gap-2">
+                             <Button variant="outline" size="sm" onClick={addAfilhado} className="h-8 px-3 rounded-lg border-white/10 text-[8px] uppercase font-black tracking-widest active:scale-95 shadow-lg">
+                                <Plus size={10} className="mr-2" /> Novo Afilhado
+                             </Button>
+                             <Button variant="outline" size="sm" onClick={addDependent} className="h-8 px-3 rounded-lg border-white/10 text-[8px] uppercase font-black tracking-widest active:scale-95 shadow-lg">
+                                <Plus size={10} className="mr-2" /> Novo Dependente
+                             </Button>
+                           </div>
+                        </div>
+                        
+                        <div className="space-y-8">
+                          {/* DEPENDENTES */}
+                          <div className="overflow-x-auto border border-white/5 rounded-2xl bg-black/10">
+                             <table className="w-full text-left border-collapse min-w-[500px]">
+                               <thead>
+                                 <tr className="bg-white/2 text-[8px] font-black uppercase text-gray-500 italic">
+                                   <th className="px-6 py-3">DEPENDENTE</th>
+                                   <th className="px-6 py-3">NIF (PT9)</th>
+                                   <th className="px-6 py-3 text-right">GRAU (%)</th>
+                                   <th className="px-6 py-3 text-right">AÇÕES</th>
+                                 </tr>
+                               </thead>
+                               <tbody className="divide-y divide-white/5">
+                                 {formData.dependents.length === 0 ? (
+                                   <tr><td colSpan={4} className="px-6 py-10 text-center text-[9px] font-black text-gray-700 italic uppercase">Sem dependentes registados</td></tr>
+                                 ) : (
+                                   formData.dependents.map((dep, i) => (
+                                     <tr key={i} className="hover:bg-white/2 transition-colors">
+                                       <td className="px-6 py-4 text-[9px] font-black text-gray-600">D{i+1}</td>
+                                       <td className="px-6 py-4">
+                                         <input 
+                                           name={`dep_nif_${i+1}`} 
+                                           className={`bg-transparent border-none text-white text-xs font-mono outline-none transition-colors w-full ${validateNIF(dep.nif) ? 'text-green-400' : dep.nif.length === 9 ? 'text-red-400' : ''}`} 
+                                           placeholder="999999999" 
+                                           value={dep.nif}
+                                           onChange={(e) => {
+                                             const deps = [...formData.dependents];
+                                             deps[i].nif = e.target.value.slice(0, 9);
+                                             setFormData({...formData, dependents: deps});
+                                           }}
+                                         />
+                                       </td>
+                                       <td className="px-6 py-4 text-right">
+                                         <input 
+                                           name={`dep_grau_${i+1}`} 
+                                           type="number" 
+                                           className="bg-transparent border-none text-white text-xs font-mono outline-none focus:text-blue-400 text-right w-16" 
+                                           placeholder="0" 
+                                           value={dep.grau}
+                                           onChange={(e) => {
+                                             const deps = [...formData.dependents];
+                                             deps[i].grau = e.target.value;
+                                             setFormData({...formData, dependents: deps});
+                                           }}
+                                         />
+                                       </td>
+                                       <td className="px-6 py-4 text-right">
+                                         <button onClick={() => {
+                                           const deps = formData.dependents.filter((_, idx) => idx !== i);
+                                           setFormData({...formData, dependents: deps});
+                                         }} className="p-2 text-red-500/30 hover:text-red-400 transition-colors"><Trash2 size={14} /></button>
+                                       </td>
+                                     </tr>
+                                   ))
+                                 )}
+                               </tbody>
+                             </table>
                           </div>
-                          <Button variant="outline" size="sm" onClick={addDependent} className="h-8 px-3 rounded-lg border-white/10 text-[8px] uppercase font-black tracking-widest active:scale-95">
-                             <Plus size={10} className="mr-2" /> Novo Dependente
-                          </Button>
-                       </div>
-                       <div className="overflow-x-auto border border-white/5 rounded-2xl bg-black/10">
-                          <table className="w-full text-left border-collapse min-w-[500px]">
-                            <thead>
-                              <tr className="bg-white/2 text-[8px] font-black uppercase text-gray-500 italic">
-                                <th className="px-6 py-3">DEPENDENTE</th>
-                                <th className="px-6 py-3">NIF (PT9)</th>
-                                <th className="px-6 py-3 text-right">GRAU (%)</th>
-                                <th className="px-6 py-3 text-right">AÇÕES</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-white/5">
-                              {formData.dependents.length === 0 ? (
-                                <tr><td colSpan={4} className="px-6 py-10 text-center text-[9px] font-black text-gray-700 italic uppercase">Sem dependentes registados</td></tr>
-                              ) : (
-                                formData.dependents.map((dep, i) => (
-                                  <tr key={i} className="hover:bg-white/2 transition-colors">
-                                    <td className="px-6 py-4 text-[9px] font-black text-gray-600">D{i+1}</td>
-                                    <td className="px-6 py-4">
-                                      <input 
-                                        name={`dep_nif_${i+1}`} 
-                                        className={`bg-transparent border-none text-white text-xs font-mono outline-none transition-colors w-full ${validateNIF(dep.nif) ? 'text-green-400' : dep.nif.length === 9 ? 'text-red-400' : ''}`} 
-                                        placeholder="999999999" 
-                                        value={dep.nif}
-                                        onChange={(e) => {
-                                          const deps = [...formData.dependents];
-                                          deps[i].nif = e.target.value.slice(0, 9);
-                                          setFormData({...formData, dependents: deps});
-                                        }}
-                                      />
-                                    </td>
-                                    <td className="px-6 py-4 text-right">
-                                      <input 
-                                        name={`dep_grau_${i+1}`} 
-                                        type="number" 
-                                        className="bg-transparent border-none text-white text-xs font-mono outline-none focus:text-blue-400 text-right w-16" 
-                                        placeholder="0" 
-                                        value={dep.grau}
-                                        onChange={(e) => {
-                                          const deps = [...formData.dependents];
-                                          deps[i].grau = e.target.value;
-                                          setFormData({...formData, dependents: deps});
-                                        }}
-                                      />
-                                    </td>
-                                    <td className="px-6 py-4 text-right">
-                                      <button onClick={() => {
-                                        const deps = formData.dependents.filter((_, idx) => idx !== i);
-                                        setFormData({...formData, dependents: deps});
-                                      }} className="p-2 text-red-500/30 hover:text-red-400 transition-colors"><Trash2 size={14} /></button>
-                                    </td>
-                                  </tr>
-                                ))
-                              )}
-                            </tbody>
-                          </table>
-                       </div>
+
+                          {/* AFILHADOS */}
+                          {formData.afilhados.length > 0 && (
+                            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+                               <p className="text-[9px] font-black uppercase tracking-widest text-gray-500 ml-4 italic">Afilhados Civis</p>
+                               <div className="overflow-x-auto border border-white/5 rounded-2xl bg-black/10">
+                                  <table className="w-full text-left border-collapse min-w-[500px]">
+                                    <thead>
+                                      <tr className="bg-white/2 text-[8px] font-black uppercase text-gray-500 italic">
+                                        <th className="px-6 py-3">AFILHADO</th>
+                                        <th className="px-6 py-3">NIF (PT9)</th>
+                                        <th className="px-6 py-3 text-right">AÇÕES</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/5">
+                                      {formData.afilhados.map((af, i) => (
+                                        <tr key={i} className="hover:bg-white/2 transition-colors">
+                                          <td className="px-6 py-4 text-[9px] font-black text-gray-600">AF{i+1}</td>
+                                          <td className="px-6 py-4">
+                                            <input 
+                                              className={`bg-transparent border-none text-white text-xs font-mono outline-none w-full ${validateNIF(af.nif) ? 'text-green-400' : af.nif.length === 9 ? 'text-red-400' : ''}`} 
+                                              placeholder="999999999" 
+                                              value={af.nif}
+                                              onChange={(e) => {
+                                                const afs = [...formData.afilhados];
+                                                afs[i].nif = e.target.value.slice(0, 9);
+                                                setFormData({...formData, afilhados: afs});
+                                              }}
+                                            />
+                                          </td>
+                                          <td className="px-6 py-4 text-right">
+                                            <button onClick={() => {
+                                              const afs = formData.afilhados.filter((_, idx) => idx !== i);
+                                              setFormData({...formData, afilhados: afs});
+                                            }} className="p-2 text-red-500/30 hover:text-red-400 transition-colors"><Trash2 size={14} /></button>
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                               </div>
+                            </motion.div>
+                          )}
+                        </div>
                     </div>
                   </div>
                 )}
@@ -400,8 +462,8 @@ export const IRSForm: React.FC = () => {
                               </div>
                            </div>
                            <div className="space-y-6">
-                              <Input id="pais_residencia_nao_residente" name="pais_residencia_nao_residente" label="País Residência (Não Residente)" placeholder="CÓDIGO PAÍS" />
-                              <Input id="nif_representante" name="nif_representante" label="NIF REPRESENTANTE" placeholder="999999999" />
+                              <Input id="pais_residencia_nao_residente" name="pais_residencia_nao_residente" label="País Residência (Não Residente)" placeholder="CÓDIGO PAÍS" value={formData.pais_residencia_nao_residente} onChange={e => setFormData({...formData, pais_residencia_nao_residente: e.target.value})} />
+                              <Input id="nif_representante" name="nif_representante" label="NIF REPRESENTANTE" placeholder="999999999" value={formData.nif_representante} onChange={e => setFormData({...formData, nif_representante: e.target.value})} />
                            </div>
                         </div>
                      </div>
@@ -415,15 +477,15 @@ export const IRSForm: React.FC = () => {
                            <div className="bg-black/20 p-8 rounded-3xl border border-white/5 space-y-6">
                               <Input id="iban_reembolso" name="iban_reembolso" label="IBAN REEMBOLSO (PT50)" placeholder="PT50..." error={errors.iban_reembolso} value={formData.iban_reembolso} onChange={e => setFormData({...formData, iban_reembolso: e.target.value.toUpperCase()})} />
                               <div className="flex items-center gap-4 group">
-                                 <input type="checkbox" id="autoriza_iban_at" name="autoriza_iban_at" className="w-4 h-4 rounded border-white/10 bg-black/40 text-blue-500" />
+                                 <input type="checkbox" id="autoriza_iban_at" name="autoriza_iban_at" checked={formData.autoriza_iban_at === 'YES'} onChange={e => setFormData({...formData, autoriza_iban_at: e.target.checked ? 'YES' : 'NO'})} className="w-4 h-4 rounded border-white/10 bg-black/40 text-blue-500" />
                                  <label htmlFor="autoriza_iban_at" className="text-[10px] text-gray-500 uppercase tracking-widest font-black group-hover:text-gray-300 transition-colors">Autoriza associação IBAN à AT?</label>
                               </div>
                            </div>
                            <div className="bg-black/20 p-8 rounded-3xl border border-white/5 space-y-6">
-                              <Input id="nif_consignacao" name="nif_consignacao" label="NIF ENTIDADE BENEFICIÁRIA" placeholder="999999999" />
+                              <Input id="nif_consignacao" name="nif_consignacao" label="NIF ENTIDADE BENEFICIÁRIA" placeholder="999999999" value={formData.nif_consignacao} onChange={e => setFormData({...formData, nif_consignacao: e.target.value})} />
                               <div className="space-y-2">
                                  <label className="text-[9px] font-black uppercase text-gray-600">Tipo Consignação</label>
-                                 <select id="tipo_consignacao" name="tipo_consignacao" className="w-full bg-black/40 border border-white/5 rounded-xl px-4 py-3 text-xs text-white outline-none focus:border-blue-500/50 transition-colors uppercase font-black">
+                                 <select id="tipo_consignacao" name="tipo_consignacao" value={formData.tipo_consignacao} onChange={e => setFormData({...formData, tipo_consignacao: e.target.value})} className="w-full bg-black/40 border border-white/5 rounded-xl px-4 py-3 text-xs text-white outline-none focus:border-blue-500/50 transition-colors uppercase font-black">
                                     <option value="IRS">IRS</option>
                                     <option value="IVA">IVA</option>
                                     <option value="AMBOS">IRS & IVA</option>
@@ -560,8 +622,8 @@ export const IRSForm: React.FC = () => {
                            <h2 className="text-white text-xs font-black uppercase tracking-[0.2em]">Identificação Atividade</h2>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-black/20 p-8 rounded-3xl border border-white/5">
-                           <Input id="cod_ativid_151" name="cod_ativid_151" label="CÓDIGO ATIVIDADE (ART. 151)" placeholder="EX: 1519" />
-                           <Input id="cod_cae" name="cod_cae" label="CÓDIGO CAE" placeholder="EX: 86906" />
+                           <Input id="cod_ativid_151" name="cod_ativid_151" label="CÓDIGO ATIVIDADE (ART. 151)" placeholder="EX: 1519" value={formData.cod_ativid_151} onChange={e => setFormData({...formData, cod_ativid_151: e.target.value})} />
+                           <Input id="cod_cae" name="cod_cae" label="CÓDIGO CAE" placeholder="EX: 86906" value={formData.cod_cae} onChange={e => setFormData({...formData, cod_cae: e.target.value})} />
                         </div>
                      </div>
 
@@ -590,17 +652,17 @@ export const IRSForm: React.FC = () => {
                            <h2 className="text-white text-xs font-black uppercase tracking-[0.2em]">Segurança Social</h2>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 p-10 bg-black/20 rounded-3xl border border-white/5">
-                           <Input id="niss_titular" name="niss_titular" label="NISS (No SEGURANÇA SOCIAL)" placeholder="11222333444" />
+                           <Input id="niss_titular" name="niss_titular" label="NISS (No SEGURANÇA SOCIAL)" placeholder="11222333444" value={formData.niss_titular} onChange={e => setFormData({...formData, niss_titular: e.target.value})} />
                            <div className="space-y-2">
                               <label className="text-[9px] font-black uppercase text-gray-600">Regime</label>
-                              <select id="regime_ss" name="regime_ss" className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-xs text-white outline-none focus:border-blue-500 transition-colors font-black uppercase">
+                              <select id="regime_ss" name="regime_ss" value={formData.regime_ss} onChange={e => setFormData({...formData, regime_ss: e.target.value})} className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-xs text-white outline-none focus:border-blue-500 transition-colors font-black uppercase">
                                  <option value="Simplificado">Simplificado</option>
                                  <option value="Contabilidade">Contab. Organizada</option>
                               </select>
                            </div>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                           <Input id="valor_ss_406" name="valor_ss_406" type="number" label="SERVIÇOS PESSOAS COLETIVAS (406)" placeholder="0.00" />
+                           <Input id="valor_ss_406" name="valor_ss_406" type="number" label="SERVIÇOS PESSOAS COLETIVAS (406)" placeholder="0.00" value={formData.valor_ss_406} onChange={e => setFormData({...formData, valor_ss_406: e.target.value})} />
                            <div className="p-8 bg-blue-500/5 border border-blue-500/10 rounded-3xl space-y-4">
                               <p className="text-[9px] text-gray-600 uppercase tracking-widest font-black leading-relaxed">Entidade contratante única (&gt;50% rendimento)?</p>
                               <div className="flex gap-4">
@@ -664,7 +726,7 @@ export const IRSForm: React.FC = () => {
              <CheckCircle2 size={24} />
              <div>
                 <p className="text-xs font-black uppercase tracking-widest">Protocol Success</p>
-                <p className="text-[9px] text-gray-500 mt-1">Form transmitted to AT secure nodes.</p>
+                <p className="text-[9px] text-gray-500 mt-1">Form transmitted to secure nodes.</p>
              </div>
           </motion.div>
         )}

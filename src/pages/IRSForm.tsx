@@ -12,745 +12,544 @@ import {
   ChevronRight,
   ChevronLeft,
   Info,
-  Calendar,
-  CreditCard
+  Building,
+  CreditCard,
+  MapPin,
+  Globe
 } from 'lucide-react';
 import { Button, Input } from '../components/common/UI';
 import { validateNIF, validateIBAN, formatCurrency } from '../lib/validations';
 import { api } from '../services/api';
 
-type TabType = 'ROSTO' | 'ANEXO_A' | 'ANEXO_B' | 'ANEXO_SS';
-
-interface Dependent {
-  nif: string;
-  birthDate: string;
-  incapacity: string;
-}
-
-interface IncomeLine {
-  nifPayer: string;
-  code: string;
-  grossValue: string;
-  withholding: string;
-  socialSecurity: string;
-}
+type TabType = 'ROSTO' | 'RESIDENCIA' | 'ANEXO_A' | 'ANEXO_B' | 'ANEXO_SS';
 
 export const IRSForm: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('ROSTO');
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
   const [formData, setFormData] = useState({
-    subjectA: {
-      name: '',
-      nif: '',
-      incapacity: '0',
-    },
-    civilStatus: '01',
-    jointTaxation: 'NO',
-    subjectB: {
-      name: '',
-      nif: '',
-      incapacity: '0',
-    },
-    dependents: [] as Dependent[],
-    anexoA: [] as IncomeLine[],
-    anexoB: {
-      hasIncome: false,
-      value401: '0',
-      value403: '0',
-    },
-    anexoSS: {
-      nif: '',
-      ssNumber: '',
-    },
-    refundIban: '',
+    // Quadro 3
+    nome_sp_a: '',
+    nif_sp_a: '',
+    incapacidade_grau_a: '0',
+    incapacidade_fa_a: '',
+    revisao_incapacidade_a: 'NO',
+    ano_revisao_a: '',
+    anterior_grau_a: '',
+    anterior_ano_a: '',
+    
+    // Quadro 4 & 5
+    estado_civil: '01',
+    opt_tributacao_conjunta: 'NO',
+    nome_sp_b: '',
+    nif_sp_b: '',
+    nif_conjuge_falecido: '',
+
+    // Quadro 6
+    dependents: Array(6).fill(null).map(() => ({ nif: '', grau: '0' })),
+    afilhados: Array(3).fill(null).map(() => ({ nif: '' })),
+
+    // Quadro 8
+    residencia_tipo: '01', // 01-Continente, 02-Açores, 03-Madeira
+    pais_residencia_nao_residente: '',
+    nif_representante: '',
+
+    // Quadro 9 & 11
+    iban_reembolso: '',
+    autoriza_iban_at: 'NO',
+    nif_consignacao: '',
+    tipo_consignacao: 'IRS',
+
+    // Anexo A
+    anexoA: [] as any[],
+
+    // Anexo B
+    cod_ativid_151: '',
+    cod_cae: '',
+    valor_401: '0',
+    valor_403: '0',
+    valor_404: '0',
+    valor_417: '0',
+    valor_419: '0',
+
+    // Anexo SS
+    niss_titular: '',
+    regime_ss: 'Simplificado',
+    valor_ss_406: '0',
+    entidade_contratante_unica: 'NO'
   });
 
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
-
   const tabs: { id: TabType; label: string; icon: any }[] = [
-    { id: 'ROSTO', label: 'Rosto (Front)', icon: FileText },
-    { id: 'ANEXO_A', label: 'Anexo A (Dependency)', icon: Users },
-    { id: 'ANEXO_B', label: 'Anexo B (Simplified)', icon: Euro },
-    { id: 'ANEXO_SS', label: 'Anexo SS (Social)', icon: ShieldCheck },
+    { id: 'ROSTO', label: 'Rosto (Pág 1)', icon: FileText },
+    { id: 'RESIDENCIA', label: 'Residência (Pág 2)', icon: MapPin },
+    { id: 'ANEXO_A', label: 'Anexo A (Trabalho)', icon: Users },
+    { id: 'ANEXO_B', label: 'Anexo B (Serviços)', icon: Building },
+    { id: 'ANEXO_SS', label: 'Anexo SS (Seg. Social)', icon: ShieldCheck },
   ];
 
   const progress = useMemo(() => {
     const currentIndex = tabs.findIndex(t => t.id === activeTab);
     return ((currentIndex + 1) / tabs.length) * 100;
-  }, [activeTab, tabs]);
+  }, [activeTab]);
 
-  const validateCurrentTab = () => {
+  const addAnexoALine = () => {
+    const newLine = {
+      nif_pagadora_a: '',
+      cod_rend_a: '401',
+      valor_rend_a: '0',
+      reten_fonte_a: '0',
+      contrib_obrig_a: '0',
+      quotiz_sind_a: '0'
+    };
+    setFormData({ ...formData, anexoA: [...formData.anexoA, newLine] });
+  };
+
+  const validateTab = () => {
     const newErrors: Record<string, string> = {};
     if (activeTab === 'ROSTO') {
-      if (!validateNIF(formData.subjectA.nif)) newErrors.nif_a = 'Invalid NIF for Subject A';
-      if (formData.jointTaxation === 'YES' && !validateNIF(formData.subjectB.nif)) {
-        newErrors.nif_b = 'Invalid NIF for Subject B (Joint Taxation)';
-      }
+      if (!validateNIF(formData.nif_sp_a)) newErrors.nif_sp_a = 'NIF Inválido';
     }
-    if (activeTab === 'ANEXO_SS') {
-      if (formData.refundIban && !validateIBAN(formData.refundIban)) {
-        newErrors.iban = 'Invalid IBAN (PT50 expected)';
-      }
+    if (activeTab === 'RESIDENCIA') {
+      if (formData.iban_reembolso && !validateIBAN(formData.iban_reembolso)) newErrors.iban_reembolso = 'IBAN Inválido (PT50)';
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleNext = () => {
-    if (validateCurrentTab()) {
-      const currentIndex = tabs.findIndex(t => t.id === activeTab);
-      if (currentIndex < tabs.length - 1) {
-        setActiveTab(tabs[currentIndex + 1].id);
-      }
+    if (validateTab()) {
+      const idx = tabs.findIndex(t => t.id === activeTab);
+      if (idx < tabs.length - 1) setActiveTab(tabs[idx + 1].id);
     }
   };
 
   const handleBack = () => {
-    const currentIndex = tabs.findIndex(t => t.id === activeTab);
-    if (currentIndex > 0) {
-      setActiveTab(tabs[currentIndex - 1].id);
-    }
-  };
-
-  const addDependent = () => {
-    setFormData({
-      ...formData,
-      dependents: [...formData.dependents, { nif: '', birthDate: '', incapacity: '0' }]
-    });
-  };
-
-  const addAnexoALine = () => {
-    setFormData({
-      ...formData,
-      anexoA: [...formData.anexoA, { nifPayer: '', code: '401', grossValue: '0', withholding: '0', socialSecurity: '0' }]
-    });
+    const idx = tabs.findIndex(t => t.id === activeTab);
+    if (idx > 0) setActiveTab(tabs[idx - 1].id);
   };
 
   const handleSubmit = async () => {
-    if (!validateCurrentTab()) return;
+    if (!validateTab()) return;
     setIsLoading(true);
     try {
       await api.irs.submit(formData);
       setIsSuccess(true);
-    } catch (err) {
-      console.error(err);
+    } catch (e) {
+      console.error(e);
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      {/* Header & Progress */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-2 border-b border-white/5">
-        <div className="flex items-center gap-4">
-          <div className="w-14 h-14 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-blue-500/20 group hover:rotate-3 transition-transform">
-             <FileText size={28} />
+    <div className="max-w-6xl mx-auto space-y-6 pb-20 animate-in fade-in duration-700">
+      {/* HEADER SECTION */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-immersive-surface p-6 rounded-3xl border border-white/5 shadow-2xl">
+        <div className="flex items-center gap-5">
+          <div className="w-12 h-12 bg-blue-600/10 rounded-2xl flex items-center justify-center text-blue-400 border border-blue-500/20">
+            <FileText size={24} />
           </div>
           <div>
-            <h1 className="text-4xl font-black text-white tracking-tighter uppercase italic bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-white">
-              Modelo 3 Replication
-            </h1>
-            <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mt-1">Autoridade Tributária e Aduaneira • Real-time State Portal</p>
+            <h1 className="text-2xl font-black text-white tracking-tight leading-none uppercase italic">I-Tax Modelo 3</h1>
+            <p className="text-[9px] font-black tracking-[0.3em] text-gray-500 uppercase mt-1">Autoridade Tributária • Engine v4.5.1</p>
           </div>
         </div>
-        <div className="flex flex-col items-end gap-2 shrink-0">
-          <div className="flex items-center gap-2">
-             {tabs.map((tab, i) => (
-                <div key={tab.id} className="flex items-center">
-                   <button 
-                     onClick={() => setActiveTab(tab.id)}
-                     className={`w-10 h-10 rounded-xl border flex items-center justify-center transition-all ${
-                     activeTab === tab.id ? 'bg-blue-600 border-blue-500 shadow-[0_0_20px_rgba(37,99,235,0.3)] text-white' : 
-                     tabs.findIndex(t => t.id === activeTab) > i ? 'bg-green-500/20 border-green-500/30 text-green-400' : 'bg-white/5 border-white/10 text-gray-600 hover:text-gray-300'
-                   }`}>
-                      {tabs.findIndex(t => t.id === activeTab) > i ? <CheckCircle2 size={18} /> : <tab.icon size={18} />}
-                   </button>
-                   {i < tabs.length - 1 && <div className="w-4 h-px bg-white/10 mx-1" />}
-                </div>
-             ))}
-          </div>
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-400">Step {tabs.findIndex(t => t.id === activeTab) + 1} of 4: {activeTab}</p>
+        
+        {/* PROGRESS LINE */}
+        <div className="flex flex-1 max-w-sm flex-col items-end gap-2 px-6">
+           <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
+              <motion.div initial={{ width: 0 }} animate={{ width: `${progress}%` }} className="h-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.3)] transition-all" />
+           </div>
+           <div className="flex justify-between w-full text-[8px] font-black uppercase tracking-widest text-gray-600 italic">
+              <span>Protocol Start</span>
+              <span className="text-blue-400">Step {tabs.findIndex(t => t.id === activeTab) + 1} of 5</span>
+           </div>
         </div>
       </div>
 
-      {/* Progress Bar Line */}
-      <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
-        <motion.div 
-          initial={{ width: 0 }}
-          animate={{ width: `${progress}%` }}
-          className="h-full bg-gradient-to-r from-blue-600 to-indigo-500 shadow-[0_0_10px_rgba(37,99,235,0.5)]"
-          transition={{ duration: 1, ease: 'circOut' }}
-        />
-      </div>
-
-      <AnimatePresence>
-        {isSuccess && (
-          <motion.div 
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="p-6 bg-green-500/10 border border-green-500/20 rounded-2xl flex items-center gap-4 text-green-400"
-          >
-            <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center border border-green-500/30">
-               <CheckCircle2 size={24} />
-            </div>
-            <div>
-               <h4 className="text-sm font-black uppercase tracking-widest">Protocol Success</h4>
-               <p className="text-xs text-gray-500 mt-1 uppercase tracking-tighter">Your IRS declaration has been encrypted and successfully transmitted to the server nodes.</p>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Form Content */}
-      <div className="bg-immersive-card rounded-2xl border border-white/5 shadow-2xl relative overflow-hidden flex flex-col min-h-[650px]">
-        {/* Navigation Bar (Desktop) */}
-        <div className="flex border-b border-white/5 overflow-x-auto bg-black/20">
+      <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6">
+        {/* VERTICAL TABS */}
+        <aside className="space-y-2">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 min-w-[150px] px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-3 border-b-2 hover:bg-white/5 ${
-                activeTab === tab.id ? 'border-blue-500 text-blue-400 bg-blue-500/5' : 'border-transparent text-gray-500'
+              className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all border ${
+                activeTab === tab.id 
+                  ? 'bg-blue-600/10 border-blue-500/30 text-blue-400 shadow-xl' 
+                  : 'bg-white/2 border-white/5 text-gray-500 hover:bg-white/5 hover:text-white'
               }`}
             >
               <tab.icon size={16} />
-              {tab.label}
+              <span className="text-[10px] font-black uppercase tracking-widest">{tab.label}</span>
             </button>
           ))}
-        </div>
+        </aside>
 
-        <div className="p-10 flex-1 overflow-y-auto custom-scrollbar">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeTab}
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="space-y-12"
-            >
-              {activeTab === 'ROSTO' && (
-                <div className="space-y-12">
-                  {/* Quadro 3 */}
-                  <section className="space-y-8 animate-in fade-in duration-500">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-blue-600/10 text-blue-400 rounded-xl flex items-center justify-center font-black border border-blue-500/20 shadow-lg shadow-blue-500/10">3</div>
-                      <div>
-                        <h3 className="text-white font-black uppercase tracking-[0.2em] text-sm">Quadro 3: Sujeito Passivo A</h3>
-                        <p className="text-[10px] text-gray-600 uppercase tracking-widest mt-1">Primary identity verification</p>
+        {/* CONTENT AREA */}
+        <main className="bg-immersive-card rounded-3xl border border-white/5 shadow-2xl relative flex flex-col min-h-[700px] overflow-hidden">
+          <div className="p-8 flex-1 overflow-y-auto custom-scrollbar">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, x: 10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -10 }}
+                className="space-y-12"
+              >
+                {/* ROSTO - PÁG 1 */}
+                {activeTab === 'ROSTO' && (
+                  <div className="space-y-12">
+                    {/* Quadro 3 */}
+                    <div className="space-y-6">
+                      <div className="flex items-center gap-3">
+                         <span className="bg-blue-600/20 text-blue-400 px-3 py-1 rounded text-[9px] font-black border border-blue-500/20">QUADRO 3</span>
+                         <h2 className="text-white text-xs font-black uppercase tracking-[0.2em]">Nome do Sujeito Passivo</h2>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-black/20 p-6 rounded-2xl border border-white/5">
+                        <Input 
+                          id="nome_sp_a"
+                          name="nome_sp_a"
+                          label="NOME SUJEITO PASSIVO A" 
+                          placeholder="EX: LAURINDO CHITECULO" 
+                          value={formData.nome_sp_a}
+                          onChange={e => setFormData({...formData, nome_sp_a: e.target.value})}
+                        />
+                        <Input 
+                          id="nif_sp_a"
+                          name="nif_sp_a"
+                          label="NIF SP A" 
+                          placeholder="999999999" 
+                          error={errors.nif_sp_a}
+                          value={formData.nif_sp_a}
+                          onChange={e => setFormData({...formData, nif_sp_a: e.target.value.slice(0, 9)})}
+                        />
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-black/20 p-6 rounded-2xl border border-white/5">
+                         <Input label="Grau Incapacidade (%)" id="incapacidade_grau_a" name="incapacidade_grau_a" type="number" value={formData.incapacity_grau_a} />
+                         <Input label="Incapacidade (FA)" id="incapacidade_fa_a" name="incapacidade_fa_a" placeholder="N/A" />
+                         <div className="space-y-2">
+                            <label className="text-[9px] font-black uppercase tracking-widest text-gray-500">Revisão Incapacidade?</label>
+                            <div className="flex gap-4">
+                               {['YES', 'NO'].map(opt => (
+                                 <button key={opt} onClick={() => setFormData({...formData, revisao_incapacidade_a: opt})} className={`flex-1 py-2 text-[9px] font-black border rounded-lg transition-all ${formData.revisao_incapacidade_a === opt ? 'border-blue-500 text-blue-400 bg-blue-500/10' : 'border-white/5 text-gray-700'}`}>{opt}</button>
+                               ))}
+                            </div>
+                         </div>
                       </div>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 p-8 bg-black/20 rounded-3xl border border-white/5">
-                      <Input 
-                        label="FULL NAME (NOME)" 
-                        placeholder="EX: LAURINDO CHITECULO" 
-                        value={formData.subjectA.name}
-                        onChange={e => setFormData({...formData, subjectA: {...formData.subjectA, name: e.target.value}})}
-                      />
-                      <Input 
-                        label="NIF IDENTITY" 
-                        placeholder="999999999" 
-                        error={errors.nif_a}
-                        value={formData.subjectA.nif}
-                        onChange={e => setFormData({...formData, subjectA: {...formData.subjectA, nif: e.target.value.slice(0, 9)}})}
-                      />
-                      <Input 
-                        label="INCAPACITY (%)" 
-                        type="number"
-                        placeholder="0" 
-                        value={formData.subjectA.incapacity}
-                        onChange={e => setFormData({...formData, subjectA: {...formData.subjectA, incapacity: e.target.value}})}
-                      />
-                    </div>
-                  </section>
 
-                  {/* Quadro 4 */}
-                  <section className="space-y-8">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-blue-600/10 text-blue-400 rounded-xl flex items-center justify-center font-black border border-blue-500/20">4</div>
-                      <h3 className="text-white font-black uppercase tracking-[0.2em] text-sm">Quadro 4: Estado Civil</h3>
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
-                      {[
-                        { id: '01', label: 'Married' },
-                        { id: '02', label: 'Facto App' },
-                        { id: '03', label: 'Single' },
-                        { id: '04', label: 'Widow' },
-                        { id: '05', label: 'Facto Sep' },
-                      ].map((status) => (
-                        <button
-                          key={status.id}
-                          onClick={() => setFormData({...formData, civilStatus: status.id})}
-                          className={`p-5 rounded-2xl border transition-all relative group flex flex-col items-center gap-3 overflow-hidden ${
-                            formData.civilStatus === status.id ? 'border-blue-500/40 bg-blue-500/10 text-blue-400' : 'border-white/5 bg-white/2 text-gray-500 hover:text-white hover:bg-white/5'
-                          }`}
-                        >
-                          <div className={`w-2 h-2 rounded-full mb-1 transition-all ${formData.civilStatus === status.id ? 'bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.8)] scale-125' : 'bg-gray-800'}`} />
-                          <span className="text-[10px] font-black uppercase tracking-widest">{status.label}</span>
-                          <span className="absolute bottom-1 right-2 text-[8px] opacity-30 font-mono tracking-tighter italic">{status.id}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </section>
-
-                  {/* Quadro 5 */}
-                  <section className="space-y-8">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-blue-600/10 text-blue-400 rounded-xl flex items-center justify-center font-black border border-blue-500/20">5</div>
-                      <h3 className="text-white font-black uppercase tracking-[0.2em] text-sm">Quadro 5: Tribute Protocol</h3>
-                    </div>
-                    <div className="bg-black/20 border border-white/5 p-10 rounded-3xl space-y-10">
-                      <div className="flex items-start gap-4">
-                        <Info size={18} className="text-blue-500 mt-1" />
-                        <p className="text-[11px] text-gray-500 uppercase tracking-widest leading-relaxed font-medium">Opt for automated joint taxation for all aggregate income streams?</p>
-                      </div>
-                      <div className="flex gap-6 max-w-sm">
-                        {['YES', 'NO'].map((opt) => (
-                          <button
-                            key={opt}
-                            onClick={() => setFormData({...formData, jointTaxation: opt})}
-                            className={`flex-1 py-4 rounded-xl border flex items-center justify-center gap-4 text-[11px] font-black uppercase tracking-[0.2em] transition-all relative overflow-hidden ${
-                              formData.jointTaxation === opt ? 'border-blue-500/40 bg-blue-500/10 text-blue-400' : 'border-white/5 text-gray-600 hover:text-gray-400'
-                            }`}
-                          >
-                            <span className={`w-4 h-4 rounded-full border-2 border-white/10 flex items-center justify-center transition-all ${formData.jointTaxation === opt ? 'border-blue-400' : ''}`}>
-                               {formData.jointTaxation === opt && <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} className="w-2 h-2 bg-blue-400 rounded-full" />}
-                            </span>
-                            {opt === 'YES' ? 'Sim (01)' : 'Não (02)'}
-                          </button>
-                        ))}
-                      </div>
-
-                      <AnimatePresence>
-                        {formData.jointTaxation === 'YES' && (
-                          <motion.div 
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            exit={{ opacity: 0, height: 0 }}
-                            className="pt-10 border-t border-white/5 grid grid-cols-1 md:grid-cols-2 gap-8"
-                          >
-                             <Input 
-                              label="SPOUSE NAME (PASSIVO B)" 
-                              placeholder="FULL IDENTITY" 
-                              value={formData.subjectB.name}
-                              onChange={e => setFormData({...formData, subjectB: {...formData.subjectB, name: e.target.value}})}
-                             />
-                             <Input 
-                              label="SPOUSE NIF" 
-                              placeholder="315802431" 
-                              error={errors.nif_b}
-                              value={formData.subjectB.nif}
-                              onChange={e => setFormData({...formData, subjectB: {...formData.subjectB, nif: e.target.value.slice(0, 9)}})}
-                             />
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  </section>
-
-                  {/* Quadro 6 */}
-                  <section className="space-y-8 pb-10">
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-blue-600/10 text-blue-400 rounded-xl flex items-center justify-center font-black border border-blue-500/20">6</div>
-                        <h3 className="text-white font-black uppercase tracking-[0.2em] text-sm">Quadro 6: Family Matrix</h3>
-                      </div>
-                      <Button variant="outline" size="sm" onClick={addDependent} className="h-10 px-5 rounded-xl border-white/10 active:scale-95 group">
-                        <Plus size={14} className="mr-2 group-hover:rotate-90 transition-transform" /> Add Dependent Entity
-                      </Button>
+                    {/* Quadro 4 & 5 */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                       <div className="space-y-6">
+                          <div className="flex items-center gap-3">
+                             <span className="bg-blue-600/20 text-blue-400 px-3 py-1 rounded text-[9px] font-black border border-blue-500/20">QUADRO 4</span>
+                             <h2 className="text-white text-xs font-black uppercase tracking-[0.2em]">Estado Civil</h2>
+                          </div>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                             {[
+                               { id: '01', label: 'Casado' },
+                               { id: '02', label: 'Unido Facto' },
+                               { id: '03', label: 'Solteiro' },
+                               { id: '04', label: 'Viúvo' },
+                               { id: '05', label: 'Separado Facto' },
+                             ].map(item => (
+                               <button key={item.id} onClick={() => setFormData({...formData, estado_civil: item.id})} className={`p-3 rounded-xl border text-[9px] font-black uppercase transition-all ${formData.estado_civil === item.id ? 'border-blue-500 bg-blue-500/10 text-blue-400' : 'border-white/5 text-gray-700 hover:text-gray-400 font-bold'}`}>
+                                 {item.label} <span className="opacity-30 ml-1 italic">{item.id}</span>
+                               </button>
+                             ))}
+                          </div>
+                       </div>
+                       <div className="space-y-6">
+                          <div className="flex items-center gap-3">
+                             <span className="bg-blue-600/20 text-blue-400 px-3 py-1 rounded text-[9px] font-black border border-blue-500/20">QUADRO 5</span>
+                             <h2 className="text-white text-xs font-black uppercase tracking-[0.2em]">Opção Tributação</h2>
+                          </div>
+                          <div className="bg-black/20 p-6 rounded-2xl border border-white/5 space-y-4">
+                             <p className="text-[9px] text-gray-500 uppercase tracking-widest font-black italic">Tributação Conjunta?</p>
+                             <div className="flex gap-4">
+                                {['YES', 'NO'].map(opt => (
+                                  <button key={opt} onClick={() => setFormData({...formData, opt_tributacao_conjunta: opt})} className={`flex-1 py-3 text-[9px] font-black border rounded-xl transition-all ${formData.opt_tributacao_conjunta === opt ? 'border-blue-500 text-blue-400 bg-blue-500/10' : 'border-white/5 text-gray-700'}`}>{opt}</button>
+                                ))}
+                             </div>
+                          </div>
+                       </div>
                     </div>
 
-                    <div className="overflow-x-auto border border-white/5 rounded-3xl bg-black/20">
-                      <table className="w-full text-left border-collapse">
-                        <thead>
-                          <tr className="bg-white/2 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 border-b border-white/5">
-                            <th className="px-10 py-5">Entity Identifer (NIF)</th>
-                            <th className="px-10 py-5">Origin (Birth)</th>
-                            <th className="px-10 py-5">Physical Rank (%)</th>
-                            <th className="px-10 py-5 text-right italic font-medium opacity-40">Matrix Ops</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/5">
-                          {formData.dependents.length === 0 ? (
-                            <tr>
-                              <td colSpan={4} className="px-10 py-20 text-center text-gray-700 italic font-medium text-xs tracking-widest uppercase">Null aggregate. Please add dependents if applicable.</td>
-                            </tr>
-                          ) : (
-                            formData.dependents.map((dep, idx) => (
-                              <tr key={idx} className="group hover:bg-white/2 transition-all">
-                                <td className="px-10 py-6">
-                                  <div className="relative group/field">
-                                    <input 
-                                      className="bg-white/5 border border-white/5 text-white text-xs outline-none focus:ring-1 focus:ring-blue-500 rounded-xl px-4 py-2 w-full font-mono tracking-tighter transition-all"
-                                      placeholder="999999999"
-                                      value={dep.nif}
-                                      onChange={(e) => {
-                                        const deps = [...formData.dependents];
-                                        deps[idx].nif = e.target.value.slice(0, 9);
-                                        setFormData({...formData, dependents: deps});
-                                      }}
-                                    />
-                                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-500 opacity-20"><ShieldCheck size={14} /></div>
-                                  </div>
-                                </td>
-                                <td className="px-10 py-6">
-                                  <div className="relative flex items-center">
-                                    <Calendar className="absolute left-3 text-gray-600 pointer-events-none" size={14} />
-                                    <input 
-                                      type="date"
-                                      className="bg-white/5 border border-white/5 text-white text-[11px] outline-none focus:ring-1 focus:ring-blue-500 rounded-xl pl-10 pr-4 py-2 w-full"
-                                      value={dep.birthDate}
-                                      onChange={(e) => {
-                                        const deps = [...formData.dependents];
-                                        deps[idx].birthDate = e.target.value;
-                                        setFormData({...formData, dependents: deps});
-                                      }}
-                                    />
-                                  </div>
-                                </td>
-                                <td className="px-10 py-6">
-                                  <input 
-                                    type="number"
-                                    className="bg-white/5 border border-white/5 text-white font-mono text-xs outline-none focus:ring-1 focus:ring-blue-500 rounded-xl px-4 py-2 w-24 text-right"
-                                    placeholder="0"
-                                    value={dep.incapacity}
-                                    onChange={(e) => {
-                                      const deps = [...formData.dependents];
-                                      deps[idx].incapacity = e.target.value;
-                                      setFormData({...formData, dependents: deps});
-                                    }}
-                                  />
-                                </td>
-                                <td className="px-10 py-6 text-right">
-                                  <button 
-                                    onClick={() => {
-                                      const deps = formData.dependents.filter((_, i) => i !== idx);
-                                      setFormData({...formData, dependents: deps});
-                                    }}
-                                    className="p-3 text-red-500/30 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-all active:scale-90"
-                                  >
-                                    <Trash2 size={18} />
-                                  </button>
-                                </td>
+                    {/* Quadro 6 */}
+                    <div className="space-y-6">
+                       <div className="flex items-center gap-3">
+                          <span className="bg-blue-600/20 text-blue-400 px-3 py-1 rounded text-[9px] font-black border border-blue-500/20">QUADRO 6</span>
+                          <h2 className="text-white text-xs font-black uppercase tracking-[0.2em]">Agregado Familiar</h2>
+                       </div>
+                       <div className="overflow-x-auto border border-white/5 rounded-2xl bg-black/10">
+                          <table className="w-full text-left border-collapse min-w-[500px]">
+                            <thead>
+                              <tr className="bg-white/2 text-[8px] font-black uppercase text-gray-500 italic">
+                                <th className="px-6 py-3">DEPENDENTE</th>
+                                <th className="px-6 py-3">NIF (PT9)</th>
+                                <th className="px-6 py-3 text-right">GRAU (%)</th>
                               </tr>
-                            ))
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </section>
-                </div>
-              )}
-
-              {activeTab === 'ANEXO_A' && (
-                <div className="space-y-12 animate-in fade-in duration-500">
-                  <div className="bg-gradient-to-r from-blue-600/10 to-indigo-600/10 border border-blue-500/20 p-10 rounded-3xl flex items-start gap-8 shadow-2xl shadow-blue-500/5">
-                    <div className="shrink-0 w-16 h-16 bg-blue-500/10 rounded-2xl border border-blue-500/30 flex items-center justify-center text-blue-400">
-                      <CreditCard size={32} />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-black uppercase tracking-[0.2em] text-blue-400">Dependency Stream Protocol</h4>
-                      <p className="text-[11px] text-gray-500 mt-3 leading-relaxed uppercase tracking-tighter italic font-medium">Declare national income from dependent employment & retirement pensions. Automated withholding verification enabled for certified NIFs.</p>
-                      <div className="mt-6 flex gap-3">
-                         <span className="px-3 py-1 bg-blue-600/10 border border-blue-500/20 rounded-md text-[9px] font-black uppercase tracking-widest text-blue-300">Auth Required</span>
-                         <span className="px-3 py-1 bg-white/5 rounded-md text-[9px] font-black uppercase tracking-widest text-gray-600">State Verified</span>
-                      </div>
+                            </thead>
+                            <tbody className="divide-y divide-white/5">
+                              {formData.dependents.map((dep, i) => (
+                                <tr key={i} className="hover:bg-white/2 transition-colors">
+                                  <td className="px-6 py-4 text-[9px] font-black text-gray-600">D{i+1}</td>
+                                  <td className="px-6 py-4">
+                                    <input name={`dep_nif_${i+1}`} className="bg-transparent border-none text-white text-xs font-mono outline-none focus:text-blue-400 transition-colors w-full" placeholder="999999999" />
+                                  </td>
+                                  <td className="px-6 py-4 text-right">
+                                    <input name={`dep_grau_${i+1}`} type="number" className="bg-transparent border-none text-white text-xs font-mono outline-none focus:text-blue-400 text-right w-16" placeholder="0" />
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                       </div>
                     </div>
                   </div>
+                )}
 
-                  <section className="space-y-8">
+                {/* RESIDÊNCIA - PÁG 2 */}
+                {activeTab === 'RESIDENCIA' && (
+                  <div className="space-y-12">
+                     <div className="space-y-8">
+                        <div className="flex items-center gap-3">
+                           <span className="bg-blue-600/20 text-blue-400 px-3 py-1 rounded text-[9px] font-black border border-blue-500/20">QUADRO 8</span>
+                           <h2 className="text-white text-xs font-black uppercase tracking-[0.2em]">Residência Fiscal</h2>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                           <div className="bg-black/20 p-8 rounded-3xl border border-white/5 space-y-6">
+                              <label className="text-[9px] font-black uppercase tracking-widest text-gray-600 italic">TIPO RESIDÊNCIA</label>
+                              <div className="grid grid-cols-1 gap-2">
+                                 {['Continente (01)', 'Açores (02)', 'Madeira (03)'].map((opt, i) => (
+                                   <button key={opt} onClick={() => setFormData({...formData, residencia_tipo: `0${i+1}`})} className={`p-4 rounded-xl border text-[9px] font-black uppercase text-left flex justify-between items-center transition-all ${formData.residencia_tipo === `0${i+1}` ? 'border-blue-500 bg-blue-500/10 text-blue-400' : 'border-white/5 text-gray-700 hover:border-white/10'}`}>
+                                      {opt}
+                                      {formData.residencia_tipo === `0${i+1}` && <CheckCircle2 size={12} />}
+                                   </button>
+                                 ))}
+                              </div>
+                           </div>
+                           <div className="space-y-6">
+                              <Input id="pais_residencia_nao_residente" name="pais_residencia_nao_residente" label="País Residência (Não Residente)" placeholder="CÓDIGO PAÍS" />
+                              <Input id="nif_representante" name="nif_representante" label="NIF REPRESENTANTE" placeholder="999999999" />
+                           </div>
+                        </div>
+                     </div>
+
+                     <div className="space-y-8">
+                        <div className="flex items-center gap-3">
+                           <span className="bg-blue-600/20 text-blue-400 px-3 py-1 rounded text-[9px] font-black border border-blue-500/20">QUADRO 9 & 11</span>
+                           <h2 className="text-white text-xs font-black uppercase tracking-[0.2em]">Reembolso e Consignação</h2>
+                        </div>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                           <div className="bg-black/20 p-8 rounded-3xl border border-white/5 space-y-6">
+                              <Input id="iban_reembolso" name="iban_reembolso" label="IBAN REEMBOLSO (PT50)" placeholder="PT50..." error={errors.iban_reembolso} value={formData.iban_reembolso} onChange={e => setFormData({...formData, iban_reembolso: e.target.value.toUpperCase()})} />
+                              <div className="flex items-center gap-4 group">
+                                 <input type="checkbox" id="autoriza_iban_at" name="autoriza_iban_at" className="w-4 h-4 rounded border-white/10 bg-black/40 text-blue-500" />
+                                 <label htmlFor="autoriza_iban_at" className="text-[10px] text-gray-500 uppercase tracking-widest font-black group-hover:text-gray-300 transition-colors">Autoriza associação IBAN à AT?</label>
+                              </div>
+                           </div>
+                           <div className="bg-black/20 p-8 rounded-3xl border border-white/5 space-y-6">
+                              <Input id="nif_consignacao" name="nif_consignacao" label="NIF ENTIDADE BENEFICIÁRIA" placeholder="999999999" />
+                              <div className="space-y-2">
+                                 <label className="text-[9px] font-black uppercase text-gray-600">Tipo Consignação</label>
+                                 <select id="tipo_consignacao" name="tipo_consignacao" className="w-full bg-black/40 border border-white/5 rounded-xl px-4 py-3 text-xs text-white outline-none focus:border-blue-500/50 transition-colors uppercase font-black">
+                                    <option value="IRS">IRS</option>
+                                    <option value="IVA">IVA</option>
+                                    <option value="AMBOS">IRS & IVA</option>
+                                 </select>
+                              </div>
+                           </div>
+                        </div>
+                     </div>
+                  </div>
+                )}
+
+                {/* ANEXO A */}
+                {activeTab === 'ANEXO_A' && (
+                  <div className="space-y-10 animate-in fade-in">
                     <div className="flex justify-between items-center">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-blue-600/10 text-blue-400 rounded-xl flex items-center justify-center font-black border border-blue-500/20">4</div>
-                        <h3 className="text-white font-black uppercase tracking-[0.2em] text-sm">Quadro 4: Revenue Audit</h3>
-                      </div>
-                      <Button variant="outline" size="sm" onClick={addAnexoALine} className="h-10 px-5 rounded-xl border-white/10 active:scale-95 group">
-                        <Plus size={14} className="mr-2 group-hover:scale-125 transition-transform" /> Add Revenue Cell
-                      </Button>
+                       <div className="flex items-center gap-3">
+                          <span className="bg-blue-600/20 text-blue-400 px-3 py-1 rounded text-[9px] font-black border border-blue-500/20">ANEXO A</span>
+                          <h2 className="text-white text-xs font-black uppercase tracking-[0.2em]">Trabalho Dependente</h2>
+                       </div>
+                       <Button variant="secondary" size="sm" onClick={addAnexoALine} className="h-9 px-4 rounded-xl border border-white/10 text-[9px] uppercase font-black tracking-widest active:scale-95">
+                          <Plus size={12} className="mr-2" /> Nova Linha
+                       </Button>
                     </div>
 
-                    <div className="overflow-x-auto border border-white/5 rounded-3xl bg-black/20">
-                      <table className="w-full text-left border-collapse min-w-[900px]">
-                        <thead>
-                          <tr className="bg-white/2 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 border-b border-white/5">
-                            <th className="px-8 py-5">Source Identifer (NIF)</th>
-                            <th className="px-8 py-5">Stream Code</th>
-                            <th className="px-8 py-5 text-right whitespace-nowrap">Gross Stream (€)</th>
-                            <th className="px-8 py-5 text-right whitespace-nowrap">Node Lock (€)</th>
-                            <th className="px-8 py-5 text-right whitespace-nowrap">SS Contrib (€)</th>
-                            <th className="px-8 py-5 text-right">Ops</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/5">
-                          {formData.anexoA.length === 0 ? (
-                            <tr>
-                              <td colSpan={6} className="px-10 py-32 text-center text-gray-700 italic font-medium text-xs tracking-widest uppercase">No revenue records established. Add rows to begin audit.</td>
-                            </tr>
-                          ) : (
-                            formData.anexoA.map((line, idx) => (
-                              <tr key={idx} className="group hover:bg-white/2 transition-all">
-                                <td className="px-8 py-6">
-                                  <input 
-                                    className="bg-white/5 border border-white/5 text-white text-xs outline-none focus:ring-1 focus:ring-blue-500 rounded-xl px-4 py-2 w-full font-mono tracking-tighter"
-                                    placeholder="999999999"
-                                    value={line.nifPayer}
-                                    onChange={(e) => {
-                                      const lines = [...formData.anexoA];
-                                      lines[idx].nifPayer = e.target.value.slice(0, 9);
-                                      setFormData({...formData, anexoA: lines});
-                                    }}
-                                  />
-                                </td>
-                                <td className="px-8 py-6">
-                                  <select 
-                                    className="bg-immersive-card border border-white/10 text-white text-[10px] font-black uppercase tracking-widest rounded-xl px-4 py-2 outline-none cursor-pointer hover:border-blue-500 transition-all w-full"
-                                    value={line.code}
-                                    onChange={(e) => {
-                                      const lines = [...formData.anexoA];
-                                      lines[idx].code = e.target.value;
-                                      setFormData({...formData, anexoA: lines});
-                                    }}
-                                  >
-                                    <option value="401">Dependency (401)</option>
-                                    <option value="402">Pensions (402)</option>
-                                    <option value="403">External (403)</option>
-                                  </select>
-                                </td>
-                                <td className="px-8 py-6">
-                                  <input 
-                                    type="number"
-                                    className="bg-white/5 border border-white/5 text-white text-xs font-mono text-right outline-none focus:ring-1 focus:ring-blue-500 rounded-xl px-4 py-2 w-full"
-                                    value={line.grossValue}
-                                    onChange={(e) => {
-                                      const lines = [...formData.anexoA];
-                                      lines[idx].grossValue = e.target.value;
-                                      setFormData({...formData, anexoA: lines});
-                                    }}
-                                  />
-                                </td>
-                                <td className="px-8 py-6">
-                                  <input 
-                                    type="number"
-                                    className="bg-white/5 border border-white/5 text-white text-xs font-mono text-right outline-none focus:ring-1 focus:ring-blue-500 rounded-xl px-4 py-2 w-full"
-                                    value={line.withholding}
-                                    onChange={(e) => {
-                                      const lines = [...formData.anexoA];
-                                      lines[idx].withholding = e.target.value;
-                                      setFormData({...formData, anexoA: lines});
-                                    }}
-                                  />
-                                </td>
-                                <td className="px-8 py-6">
-                                  <input 
-                                    type="number"
-                                    className="bg-white/5 border border-white/5 text-white text-xs font-mono text-right outline-none focus:ring-1 focus:ring-blue-500 rounded-xl px-4 py-2 w-full"
-                                    value={line.socialSecurity}
-                                    onChange={(e) => {
-                                      const lines = [...formData.anexoA];
-                                      lines[idx].socialSecurity = e.target.value;
-                                      setFormData({...formData, anexoA: lines});
-                                    }}
-                                  />
-                                </td>
-                                <td className="px-8 py-6 text-right">
-                                  <button 
-                                    onClick={() => {
-                                      const lines = formData.anexoA.filter((_, i) => i !== idx);
-                                      setFormData({...formData, anexoA: lines});
-                                    }}
-                                    className="p-3 text-red-500/30 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-all"
-                                  >
-                                    <Trash2 size={18} />
-                                  </button>
-                                </td>
-                              </tr>
-                            ))
-                          )}
-                        </tbody>
-                        {formData.anexoA.length > 0 && (
-                          <tfoot>
-                            <tr className="bg-white/2 border-t border-white/5">
-                               <td colSpan={2} className="px-8 py-6 text-[11px] font-black uppercase text-blue-400 tracking-[0.2em] italic">System Aggregate Total</td>
-                               <td className="px-8 py-6 text-xs font-black text-white text-right font-mono italic">
-                                 {formatCurrency(formData.anexoA.reduce((acc, curr) => acc + Number(curr.grossValue), 0))}
-                               </td>
-                               <td className="px-8 py-6 text-xs font-black text-white text-right font-mono italic opacity-60">
-                                 {formatCurrency(formData.anexoA.reduce((acc, curr) => acc + Number(curr.withholding), 0))}
-                               </td>
-                               <td className="px-8 py-6 text-xs font-black text-white text-right font-mono italic opacity-60">
-                                 {formatCurrency(formData.anexoA.reduce((acc, curr) => acc + Number(curr.socialSecurity), 0))}
-                               </td>
-                               <td className="px-8 py-6"></td>
-                            </tr>
-                          </tfoot>
-                        )}
-                      </table>
+                    <div className="overflow-x-auto border border-white/5 rounded-3xl bg-black/10">
+                       <table className="w-full text-left border-collapse min-w-[900px]">
+                         <thead>
+                           <tr className="bg-white/2 text-[8px] font-black uppercase text-gray-500 italic border-b border-white/5">
+                             <th className="px-6 py-4">NIF PAGADORA</th>
+                             <th className="px-6 py-4">CÓDIGO</th>
+                             <th className="px-6 py-4 text-right whitespace-nowrap font-mono italic">Rend. Bruto (€)</th>
+                             <th className="px-6 py-4 text-right whitespace-nowrap font-mono italic">Retenção (€)</th>
+                             <th className="px-6 py-4 text-right italic font-mono opacity-50">Contrib. SS (€)</th>
+                             <th className="px-6 py-4 text-right">Delete</th>
+                           </tr>
+                         </thead>
+                         <tbody className="divide-y divide-white/5">
+                            {formData.anexoA.length === 0 ? (
+                              <tr><td colSpan={6} className="px-10 py-12 text-center text-gray-700 italic uppercase text-[9px] font-black">Null revenue matrix. Please add records if applicable.</td></tr>
+                            ) : (
+                              formData.anexoA.map((row, idx) => (
+                                <tr key={idx} className="hover:bg-white/2 transition-colors">
+                                   <td className="px-6 py-4">
+                                      <input name="nif_pagadora_a[]" className="bg-transparent border-none text-white text-xs font-mono outline-none w-full" placeholder="999999999" />
+                                   </td>
+                                   <td className="px-6 py-4">
+                                      <select name="cod_rend_a[]" className="bg-immersive-bg border border-white/10 text-[9px] font-black text-white px-3 py-1.5 rounded-lg uppercase outline-none">
+                                         <option value="401">401</option>
+                                         <option value="402">402</option>
+                                      </select>
+                                   </td>
+                                   <td className="px-6 py-4">
+                                      <input name="valor_rend_a[]" type="number" className="bg-transparent border-none text-white text-xs font-mono text-right outline-none w-full" placeholder="0.00" />
+                                   </td>
+                                   <td className="px-6 py-4">
+                                      <input name="reten_fonte_a[]" type="number" className="bg-transparent border-none text-white text-xs font-mono text-right outline-none w-full" placeholder="0.00" />
+                                   </td>
+                                   <td className="px-6 py-4">
+                                      <input name="contrib_obrig_a[]" type="number" className="bg-transparent border-none text-white text-xs font-mono text-right outline-none w-full" placeholder="0.00" />
+                                   </td>
+                                   <td className="px-6 py-4 text-right">
+                                      <button onClick={() => {
+                                        const newArr = formData.anexoA.filter((_, i) => i !== idx);
+                                        setFormData({...formData, anexoA: newArr});
+                                      }} className="p-2 text-red-500/30 hover:text-red-400 hover:bg-red-500/10 rounded-lg"><Trash2 size={14} /></button>
+                                   </td>
+                                </tr>
+                              ))
+                            )}
+                         </tbody>
+                       </table>
                     </div>
-                  </section>
-                </div>
-              )}
+                  </div>
+                )}
 
-              {activeTab === 'ANEXO_B' && (
-                <div className="space-y-12 animate-in fade-in duration-500">
-                   <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-blue-600/10 text-blue-400 rounded-xl flex items-center justify-center font-black border border-blue-500/20">4</div>
-                      <h3 className="text-white font-black uppercase tracking-[0.2em] text-sm">Quadro 4: Category B Dynamics</h3>
-                   </div>
-                   
-                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                      <div className="bg-black/20 p-10 rounded-3xl border border-white/5 space-y-10">
-                         <div className="flex flex-col gap-6">
-                            <div className="flex justify-between items-end gap-10 group">
-                               <div className="flex-1 space-y-2">
-                                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 group-hover:text-gray-300 transition-all leading-tight">401: Commercial Entity Sales / Product Stream</label>
-                                  <div className="h-0.5 w-full bg-white/5 rounded-full overflow-hidden">
-                                     <div className="h-full bg-blue-600/30 w-1/3" />
-                                  </div>
-                               </div>
-                               <input 
-                                 type="number"
-                                 className="w-40 bg-white/5 border border-white/10 rounded-2xl px-6 py-3 text-sm text-right font-mono text-white focus:ring-1 focus:ring-blue-500 transition-all outline-none"
-                                 value={formData.anexoB.value401}
-                                 onChange={e => setFormData({...formData, anexoB: {...formData.anexoB, value401: e.target.value}})}
-                               />
-                            </div>
+                {/* ANEXO B */}
+                {activeTab === 'ANEXO_B' && (
+                  <div className="space-y-12">
+                     <div className="space-y-8">
+                        <div className="flex items-center gap-3">
+                           <span className="bg-blue-600/20 text-blue-400 px-3 py-1 rounded text-[9px] font-black border border-blue-500/20">QUADRO 3</span>
+                           <h2 className="text-white text-xs font-black uppercase tracking-[0.2em]">Identificação Atividade</h2>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-black/20 p-8 rounded-3xl border border-white/5">
+                           <Input id="cod_ativid_151" name="cod_ativid_151" label="CÓDIGO ATIVIDADE (ART. 151)" placeholder="EX: 1519" />
+                           <Input id="cod_cae" name="cod_cae" label="CÓDIGO CAE" placeholder="EX: 86906" />
+                        </div>
+                     </div>
 
-                            <div className="flex justify-between items-end gap-10 group mt-4">
-                               <div className="flex-1 space-y-2">
-                                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 group-hover:text-gray-300 transition-all leading-tight">403: Professional Service Assets / IP Licensing</label>
-                                  <div className="h-0.5 w-full bg-white/5 rounded-full overflow-hidden">
-                                     <div className="h-full bg-indigo-600/30 w-1/2" />
-                                  </div>
-                               </div>
-                               <input 
-                                 type="number"
-                                 className="w-40 bg-white/5 border border-white/10 rounded-2xl px-6 py-3 text-sm text-right font-mono text-white focus:ring-1 focus:ring-blue-500 transition-all outline-none"
-                                 value={formData.anexoB.value403}
-                                 onChange={e => setFormData({...formData, anexoB: {...formData.anexoB, value403: e.target.value}})}
-                               />
-                            </div>
-                         </div>
-                      </div>
+                     <div className="space-y-8">
+                        <div className="flex items-center gap-3">
+                           <span className="bg-blue-600/20 text-blue-400 px-3 py-1 rounded text-[9px] font-black border border-blue-500/20">QUADRO 4</span>
+                           <h2 className="text-white text-xs font-black uppercase tracking-[0.2em]">Rendimentos Brutos</h2>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                           <Input id="valor_401" name="valor_401" type="number" label="VENDAS (401)" placeholder="0.00" />
+                           <Input id="valor_403" name="valor_403" type="number" label="PROFISSIONAIS (403)" placeholder="0.00" />
+                           <Input id="valor_404" name="valor_404" type="number" label="OUTROS SERVIÇOS (404)" placeholder="0.00" />
+                           <Input id="valor_417" name="valor_417" type="number" label="ALOJAMENTO LOCAL (417)" placeholder="0.00" />
+                           <Input id="valor_419" name="valor_419" type="number" label="CRIPTOATIVOS (419)" placeholder="0.00" />
+                        </div>
+                     </div>
+                  </div>
+                )}
 
-                      <div className="bg-gradient-to-br from-immersive-card/50 to-blue-900/10 p-12 rounded-3xl border border-white/10 flex flex-col justify-center items-center text-center relative overflow-hidden group">
-                         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-blue-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
-                         <div className="w-20 h-20 rounded-[2rem] bg-gradient-to-tr from-blue-600 to-indigo-600 border border-blue-500/20 flex items-center justify-center text-white mb-8 font-black text-3xl italic tracking-[0.2em] shadow-2xl shadow-blue-500/20 transition-transform group-hover:rotate-6">AT</div>
-                         <h4 className="text-lg font-black uppercase tracking-[0.3em] text-white italic mb-4">Simplified Architecture</h4>
-                         <p className="text-[11px] text-gray-500 leading-relaxed uppercase tracking-[0.15em] font-medium max-w-xs">Autonomous tax coefficients applied per Ministerial Protocol v4.2. Stream verification locked to portal identity.</p>
-                         <div className="mt-8 flex gap-2">
-                             {[1, 2, 3].map(i => <div key={i} className="w-1 h-1 bg-blue-500/40 rounded-full" />)}
-                         </div>
-                      </div>
-                   </div>
-                </div>
-              )}
+                {/* ANEXO SS */}
+                {activeTab === 'ANEXO_SS' && (
+                  <div className="space-y-12">
+                     <div className="space-y-8">
+                        <div className="flex items-center gap-3">
+                           <span className="bg-blue-600/20 text-blue-400 px-3 py-1 rounded text-[9px] font-black border border-blue-500/20">ANEXO SS</span>
+                           <h2 className="text-white text-xs font-black uppercase tracking-[0.2em]">Segurança Social</h2>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 p-10 bg-black/20 rounded-3xl border border-white/5">
+                           <Input id="niss_titular" name="niss_titular" label="NISS (No SEGURANÇA SOCIAL)" placeholder="11222333444" />
+                           <div className="space-y-2">
+                              <label className="text-[9px] font-black uppercase text-gray-600">Regime</label>
+                              <select id="regime_ss" name="regime_ss" className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-xs text-white outline-none focus:border-blue-500 transition-colors font-black uppercase">
+                                 <option value="Simplificado">Simplificado</option>
+                                 <option value="Contabilidade">Contab. Organizada</option>
+                              </select>
+                           </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                           <Input id="valor_ss_406" name="valor_ss_406" type="number" label="SERVIÇOS PESSOAS COLETIVAS (406)" placeholder="0.00" />
+                           <div className="p-8 bg-blue-500/5 border border-blue-500/10 rounded-3xl space-y-4">
+                              <p className="text-[9px] text-gray-600 uppercase tracking-widest font-black leading-relaxed">Entidade contratante única (&gt;50% rendimento)?</p>
+                              <div className="flex gap-4">
+                                 {['YES', 'NO'].map(opt => (
+                                   <button key={opt} onClick={() => setFormData({...formData, entidade_contratante_unica: opt})} className={`flex-1 py-3 text-[9px] font-black border rounded-xl transition-all ${formData.entidade_contratante_unica === opt ? 'border-blue-500 text-blue-400 bg-blue-500/10' : 'border-white/5 text-gray-700'}`}>{opt}</button>
+                                 ))}
+                              </div>
+                           </div>
+                        </div>
+                     </div>
 
-              {activeTab === 'ANEXO_SS' && (
-                <div className="space-y-12 animate-in fade-in duration-500">
-                   <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-blue-600/10 text-blue-400 rounded-xl flex items-center justify-center font-black border border-blue-500/20">3</div>
-                      <h3 className="text-white font-black uppercase tracking-[0.2em] text-sm">Quadro 3: Social Security Registry</h3>
-                   </div>
-
-                   <div className="grid grid-cols-1 md:grid-cols-2 gap-10 p-10 bg-black/20 rounded-3xl border border-white/5">
-                      <Input 
-                        label="NISS (SOCIAL SECURITY NO)" 
-                        placeholder="11122233344" 
-                        value={formData.anexoSS.ssNumber}
-                        onChange={e => setFormData({...formData, anexoSS: {...formData.anexoSS, ssNumber: e.target.value.slice(0, 11)}})}
-                      />
-                      <Input 
-                        label="REFUND PORTAL IBAN (PT50)" 
-                        placeholder="PT50 0000 0000 0000 0000 0000 1" 
-                        value={formData.refundIban}
-                        onChange={e => setFormData({...formData, refundIban: e.target.value.toUpperCase()})}
-                        error={errors.iban}
-                      />
-                   </div>
-
-                   <div className="p-10 bg-blue-500/5 border border-blue-500/20 rounded-3xl flex flex-col md:flex-row items-center gap-10 shadow-2xl shadow-blue-600/5 relative overflow-hidden">
-                      <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 blur-[50px] rounded-full -mr-10 -mt-10" />
-                      <div className="w-20 h-20 bg-blue-600/10 rounded-full flex items-center justify-center text-blue-400 border border-blue-500/20 shadow-inner group transition-all">
-                         <ShieldCheck size={40} className="group-hover:scale-110 transition-transform" />
-                      </div>
-                      <div className="flex-1 text-center md:text-left">
-                         <h4 className="text-lg font-black uppercase tracking-[0.2em] text-white">Final Transmission Checkpoint</h4>
-                         <p className="text-[11px] text-gray-500 uppercase tracking-widest mt-2 font-medium leading-relaxed">
-                            Verify all matrix inputs. Submitting this declaration establishes a binding legal record in the AT cloud nodes.
-                         </p>
-                      </div>
-                      <Button 
-                        onClick={handleSubmit}
-                        isLoading={isLoading}
-                        className="h-16 px-12 rounded-2xl font-black uppercase tracking-[0.25em] text-xs shadow-2xl shadow-blue-600/20 active:scale-95 bg-blue-600 hover:bg-blue-500"
-                      >
-                        Initiate Global Submit
-                      </Button>
-                   </div>
-                </div>
-              )}
-            </motion.div>
-          </AnimatePresence>
-        </div>
-
-        {/* Navigation Footer */}
-        <div className="p-8 bg-black/40 border-t border-white/5 flex flex-col sm:flex-row justify-between items-center gap-6">
-          <Button 
-            variant="ghost" 
-            onClick={handleBack} 
-            disabled={activeTab === 'ROSTO'}
-            className="text-gray-500 disabled:opacity-10 font-black uppercase tracking-widest text-[10px] hover:text-white"
-          >
-            <ChevronLeft size={16} className="mr-3" /> Protocol Step Back
-          </Button>
-
-          <div className="flex items-center gap-6">
-             <div className="hidden md:flex gap-1.5">
-                {tabs.map((_, i) => (
-                  <div key={i} className={`w-2 h-2 rounded-full transition-all duration-500 ${tabs.findIndex(t => t.id === activeTab) >= i ? 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]' : 'bg-white/5'}`} />
-                ))}
-             </div>
-             {activeTab !== 'ANEXO_SS' ? (
-                <Button onClick={handleNext} className="h-14 px-12 rounded-2xl group font-black uppercase tracking-[0.2em] text-[10px] shadow-xl shadow-blue-600/10">
-                  Verify & Next Step <ChevronRight size={16} className="ml-3 group-hover:translate-x-1 transition-transform" />
-                </Button>
-             ) : (
-                <Button 
-                  onClick={handleSubmit} 
-                  isLoading={isLoading} 
-                  className="h-14 px-12 rounded-2xl font-black uppercase tracking-[0.2em] text-[10px] bg-indigo-600 hover:bg-indigo-500 shadow-2xl shadow-indigo-600/10"
-                >
-                  Confirm Final State
-                </Button>
-             )}
+                     {/* FINAL ACTION */}
+                     <div className="p-10 bg-gradient-to-tr from-blue-600/20 to-indigo-600/10 rounded-3xl border border-blue-500/20 flex flex-col md:flex-row items-center gap-10 shadow-2xl">
+                        <div className="w-20 h-20 bg-blue-600/20 rounded-full flex items-center justify-center text-blue-400 border border-blue-500/30">
+                           <ShieldCheck size={40} />
+                        </div>
+                        <div className="flex-1 text-center md:text-left">
+                           <h4 className="text-sm font-black uppercase tracking-[0.2em] text-white">Pronto para transmissão</h4>
+                           <p className="text-[10px] text-gray-500 uppercase tracking-widest leading-relaxed mt-2 italic">A submissão deste formulário estabelece um registo oficial encriptado nos servidores da Autoridade Tributária.</p>
+                        </div>
+                        <Button 
+                          onClick={handleSubmit} 
+                          isLoading={isLoading} 
+                          className="h-16 px-12 rounded-2xl font-black uppercase tracking-[0.2em] text-[10px] bg-blue-600 hover:bg-blue-500 shadow-2xl active:scale-95 transition-all text-white"
+                        >
+                           Seal & Transmit Protocol
+                        </Button>
+                     </div>
+                  </div>
+                )}
+              </motion.div>
+            </AnimatePresence>
           </div>
-        </div>
+
+          {/* FOOTER NAV */}
+          <div className="px-10 py-8 bg-black/40 border-t border-white/5 flex flex-col sm:flex-row justify-between items-center gap-6">
+             <Button variant="ghost" onClick={handleBack} disabled={activeTab === 'ROSTO'} className="text-gray-500 font-black uppercase text-[9px] tracking-widest disabled:opacity-10">
+                <ChevronLeft size={16} className="mr-3" /> Step Back
+             </Button>
+             <div className="flex items-center gap-6">
+                <div className="hidden md:flex gap-1.5 opacity-40">
+                   {tabs.map((_, i) => <div key={i} className={`w-1.5 h-1.5 rounded-full ${tabs.findIndex(t => t.id === activeTab) >= i ? 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]' : 'bg-white/5'}`} />)}
+                </div>
+                {activeTab !== 'ANEXO_SS' ? (
+                   <Button onClick={handleNext} className="h-12 px-10 rounded-2xl font-black uppercase text-[9px] tracking-[0.2em] bg-blue-600 text-white shadow-xl">
+                      Confirm & Advance <ChevronRight size={14} className="ml-3" />
+                   </Button>
+                ) : (
+                   <Button onClick={handleSubmit} className="h-12 px-10 rounded-2xl font-black uppercase text-[9px] tracking-[0.2em] bg-indigo-600 text-white shadow-xl opacity-60">
+                      Final Review
+                   </Button>
+                )}
+             </div>
+          </div>
+        </main>
       </div>
 
-      {/* Real-time Validation Errors Summary */}
       <AnimatePresence>
-        {Object.keys(errors).length > 0 && (
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            className="p-6 bg-red-500/10 border border-red-500/20 rounded-3xl flex items-center gap-6"
-          >
-            <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center text-red-500 border border-red-500/30">
-               <AlertCircle size={24} />
-            </div>
-            <div>
-               <h4 className="text-sm font-black uppercase tracking-widest text-red-500">Validation Protocol Deviation</h4>
-               <p className="text-[10px] text-gray-500 uppercase tracking-tighter mt-1 font-medium">Identity or formatting errors detected in active matrix. Review highlighted fields above.</p>
-            </div>
+        {isSuccess && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="fixed bottom-10 right-10 p-6 bg-green-500/10 border border-green-500/20 rounded-2xl flex items-center gap-4 text-green-400 shadow-2xl z-[100] backdrop-blur-xl">
+             <CheckCircle2 size={24} />
+             <div>
+                <p className="text-xs font-black uppercase tracking-widest">Protocol Success</p>
+                <p className="text-[9px] text-gray-500 mt-1">Form transmitted to AT secure nodes.</p>
+             </div>
           </motion.div>
         )}
       </AnimatePresence>
-
-      <div className="flex justify-center pb-20">
-         <p className="text-[9px] font-black uppercase tracking-[0.3em] text-gray-700 italic">Official Modelo 3 Engine v4.2.1 • AES-256 State Persistent</p>
-      </div>
     </div>
   );
 };

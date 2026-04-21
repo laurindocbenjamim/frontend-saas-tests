@@ -10,7 +10,10 @@ export const api = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(credentials),
       });
-      if (!res.ok) throw new Error('Login failed');
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Login failed');
+      }
       return res.json();
     }
   },

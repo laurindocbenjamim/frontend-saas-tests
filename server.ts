@@ -133,7 +133,7 @@ async function startServer() {
   app.post("/api/auth/login", (req, res) => {
     const { email, password } = req.body;
     const db = readDB();
-    const user = db.users.find((u: any) => u.email === email && u.password === password);
+    const user = db.users.find((u: any) => u.email.toLowerCase() === email.toLowerCase() && u.password === password);
     if (user) {
       res.json({ user });
     } else {

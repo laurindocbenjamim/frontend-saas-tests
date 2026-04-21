@@ -43,8 +43,8 @@ export const RegisterPage: React.FC = () => {
         role: 'user'
       });
       navigate('/login');
-    } catch (err) {
-      setErrors({ global: 'Registration failed. Please try again.' });
+    } catch (err: any) {
+      setErrors({ global: err.message || 'Registration failed. Please try again.' });
     } finally {
       setIsLoading(false);
     }

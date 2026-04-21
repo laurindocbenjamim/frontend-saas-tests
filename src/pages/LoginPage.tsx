@@ -22,8 +22,8 @@ export const LoginPage: React.FC = () => {
       const data = await api.auth.login(formData);
       login(data.user);
       navigate('/dashboard');
-    } catch (err) {
-      setErrors({ global: 'Invalid email or password. Please try again.' });
+    } catch (err: any) {
+      setErrors({ global: err.message || 'Invalid email or password. Please try again.' });
     } finally {
       setIsLoading(false);
     }

@@ -1,0 +1,42 @@
+@import "tailwindcss";
+
+@theme {
+  --color-immersive-bg: #050505;
+  --color-immersive-surface: #0a0a0a;
+  --color-immersive-card: #111111;
+  --color-immersive-border: rgba(255, 255, 255, 0.1);
+  --color-immersive-border-light: rgba(255, 255, 255, 0.05);
+}
+
+@layer base {
+  * {
+    @apply border-immersive-border;
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+  transition: background-color 0.3s ease;
+}
+
+body {
+  @apply bg-immersive-bg dark:bg-immersive-bg text-gray-200 dark:text-gray-200 transition-colors duration-300 font-sans;
+}
+
+/* Custom Scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  @apply bg-white/10 rounded-full;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  @apply bg-white/20;
+}
